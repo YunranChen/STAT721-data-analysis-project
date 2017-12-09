@@ -1,0 +1,81 @@
+---
+title: "Project"
+author: "Yunran Chen"
+date: "2017/12/8"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r library}
+library(tibble)
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+
+bioassay.read = read.table("http://stat.duke.edu/sites/stat.duke.edu/files/bioassay.txt",
+                       header=T,stringsAsFactors = FALSE) %>% as.tibble()
+
+bioassay=bind_cols(map_df(bioassay.read %>% select(uterus,weight,EE,ZM),~.x %>% as.numeric(.)),
+                   map_df(bioassay.read %>% select(protocol,lab,group),~.x %>% as.factor(.))
+                   ) %>% as.tibble()
+```
+
+```{r EDA}
+##Protocol: For EE, AB no interaction. CD small interaction. AB and CD are different! (immature--adult)
+##But for ZZ, AB CD interaction. AB CD are different!
+##consider take apart the `protocol` into 2 parts.
+
+
+##protocol+labs+ZM(inter(labs,ZM);inter(protocol,ZM);)
+
+##---------------------points+lm
+###3variable
+ggplot(data=bioassay,mapping = aes(y = uterus,x = ZM,color=protocol))+
+  geom_point()+geom_smooth(method = "lm")+theme_bw()
+###4var
+ggplot(data=bioassay,mapping = aes(y = uterus,x = ZM,color=lab,alpha=0.1))+
+  geom_point()+geom_smooth(method = "lm",se=FALSE)+theme_bw()+facet_wrap(~ protocol)
+
+##---------------------boxplot
+##different labs have diff mean on ZM. interaction on labs and protocol.
+##when consider ZM as numeric, the diff is not sig in pic. but in factor - diff.
+###4var
+ggplot(data=bioassay,mapping = aes(y = uterus,x = as.factor(ZM),color=lab))+
+  geom_boxplot()+theme_bw()+facet_wrap(~ protocol)
+
+##3var:protocol
+ggplot(data=bioassay,mapping = aes(y = uterus,x = EE,color=protocol))+
+  geom_point()+geom_smooth(method = "lm")+theme_bw()
+
+
+##protocol:lab
+ggplot(data=bioassay,mapping = aes(y = lab,x = protocol))+
+  geom_jitter()
+
+##protocol:weight
+##lab:weight
+##protocol:lab:weight
+ggplot(data=bioassay %>% filter(protocol %in% c("A")),# c("C","D")
+       mapping = aes(y = uterus,x = weight,color=lab))+
+  geom_point()+geom_smooth(method = "lm",se=FALSE)+theme_bw()
+
+##group:protocol:x
+ggplot(data=bioassay,mapping = aes(y = uterus,x = as.factor(ZM),color=protocol:group,fill=protocol))+
+  geom_boxplot()+theme_bw()#+facet_wrap(~ protocol)
+
+```
+
+
+## Part I: OLS/MLE
+
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
