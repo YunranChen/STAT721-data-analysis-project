@@ -16,6 +16,7 @@ library(dplyr)
 library(purrr)
 library(tidyr)
 library(ggplot2)
+library(stringr)
 
 bioassay.read = read.table("http://stat.duke.edu/sites/stat.duke.edu/files/bioassay.txt",
                        header=T,stringsAsFactors = FALSE) %>% as.tibble()
@@ -23,6 +24,7 @@ bioassay.read = read.table("http://stat.duke.edu/sites/stat.duke.edu/files/bioas
 bioassay=bind_cols(map_df(bioassay.read %>% select(uterus,weight,EE,ZM),~.x %>% as.numeric(.)),
                    map_df(bioassay.read %>% select(protocol,lab,group),~.x %>% as.factor(.))
                    ) %>% as.tibble()
+bioassay.fac=bioassay %>% mutate(EE=as.factor(EE),ZM=as.factor(ZM))
 ```
 
 ```{r EDA}
@@ -74,8 +76,64 @@ ggplot(data=bioassay,mapping = aes(y = uterus,x = as.factor(ZM),color=protocol:g
 ## Part I: OLS/MLE
 
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r lm.full.1, echo=FALSE}
+##----------------------------------------FULL
+
+lm.full=lm(data = bioassay,formula = uterus~EE+ZM+protocol+lab+group+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab+EE:group+ZM:group+EE:protocol:lab+ZM:protocol:lab+lab:protocol+group:protocol+weight:lab)
+summary(lm.full)
+anova(lm.full)
+
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r lm.full.2}
+##----------------------------------------Simple
+lm.full.simple=lm(data = bioassay,formula = uterus~EE+ZM+protocol+lab+group+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)
+anova(lm.full.simple)
+summary(lm.full.simple)
+##------Q1
+ind=str_detect(summary(lm.full.simple)$coefficients %>% rownames(),"EE")
+eff.coeff.2=summary(lm.full.simple)$coefficients %>%
+  as.data.frame() %>% 
+  mutate(coeff=rownames(.)) %>% 
+  filter(ind)
+
+```
+
+```{r lm.full.fac.1}
+##protocol seperate or not?
+
+##consider EE ZM as factor
+lm.full.fac.1=lm(data = bioassay.fac,formula = uterus~EE+ZM+protocol+lab+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab+EE:protocol:lab+ZM:protocol:lab+lab:protocol+weight:lab)
+
+##---Q1:
+#(1)significant in EE & ZM; 
+anova(lm.full.fac.1)
+#(1)EE:+;ZM:-
+
+eff.coef=function(lm.obj,str){
+  coef=summary(lm.obj)$coefficients
+  ind=str_detect( coef %>% rownames(),str)
+  eff.coef=coef %>%
+    as.data.frame() %>% 
+    mutate(coeff=rownames(.)) %>% 
+    filter(ind) %>% 
+    pull(Estimate) %>% sum()+coef[1,1] #intercept
+return(eff.coef)
+}
+eff.coef(lm.full.fac.1,"EE") #+
+eff.coef(lm.full.fac.1,"ZM") #-
+
+#(2)SOME LABS:
+EE10:labPoulenc 
+paste0("EE[0-9.:]+lab","abc","|","EE[0-9.]+$","|")
+map_int(bioassay.read$lab,~eff.coef(lm.full.fac.1,.x) )
+
+ind.mat=matrix(.nrow=nrow())
+str_detect(.,"EE")
+
+```
+
+
+
