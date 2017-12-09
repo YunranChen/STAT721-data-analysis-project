@@ -101,38 +101,81 @@ eff.coeff.2=summary(lm.full.simple)$coefficients %>%
 
 ```
 
+```{r functions}
+eff.tbl=function(lm.obj){
+  
+  ind.mat=matrix(0,nrow=nrow(summary(lm.obj)$coefficients),ncol=6)
+  colnames(ind.mat)=c("EE","ZM","lab","protocol","EEdose","ZMdose")
+  ind.mat=cbind(coef=summary(lm.obj)$coefficients%>%rownames(.),ind.mat)
+  ind.mat[str_detect(ind.mat[,1],"EE"),"EE"]=1
+  ind.mat[str_detect(ind.mat[,1],"ZM"),"ZM"]=1
+  
+  for (dose in c(bioassay.fac$EE %>% levels())){
+     ind.mat[str_detect(ind.mat[,1],paste0("EE",dose)),"EEdose"]=dose
+  }
+  for (dose in c(bioassay.fac$ZM %>% levels())){
+     ind.mat[str_detect(ind.mat[,1],paste0("ZM",dose)),"ZMdose"]=dose
+  }
+  for (lab in c(bioassay.fac$lab %>% levels())){
+     ind.mat[str_detect(ind.mat[,1],paste0("lab",lab)),"lab"]=lab
+  }     
+  for (protocol in c(bioassay.fac$protocol %>% levels())){
+     ind.mat[str_detect(ind.mat[,1],paste0("protocol",protocol)),"protocol"]=protocol
+  }  
+  ind.tbl=ind.mat%>% as.tibble()
+  return(ind.tbl)
+}
+
+```
+
+
+
 ```{r lm.full.fac.1}
 ##protocol seperate or not?
 
 ##consider EE ZM as factor
-lm.full.fac.1=lm(data = bioassay.fac,formula = uterus~EE+ZM+protocol+lab+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab+EE:protocol:lab+ZM:protocol:lab+lab:protocol+weight:lab)
-
+lm.full.fac.1=lm(data = bioassay.fac,formula = uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab+EE:protocol:lab+ZM:protocol:lab+lab:protocol+weight:lab)
+plot(lm.full.fac.1)
 ##---Q1:
 #(1)significant in EE & ZM; 
 anova(lm.full.fac.1)
 #(1)EE:+;ZM:-
-
-eff.coef=function(lm.obj,str){
-  coef=summary(lm.obj)$coefficients
-  ind=str_detect( coef %>% rownames(),str)
-  eff.coef=coef %>%
-    as.data.frame() %>% 
-    mutate(coeff=rownames(.)) %>% 
-    filter(ind) %>% 
-    pull(Estimate) %>% sum()+coef[1,1] #intercept
-return(eff.coef)
+ind.tbl=eff.tbl(lm.full.fac.1)
+ind.tbl[1,]="1"
+ee=summary(lm.full.fac.1)$coefficients[ind.tbl$EE=="1","Estimate"] %>% sum()
+ee
+zm=summary(lm.full.fac.1)$coefficients[ind.tbl$ZM=="1","Estimate"] %>% sum()
+zm
+#(2)some labs:
+##basis:Basf
+##EE:+
+##ZM:-
+labeff=function(str.ee,str.lab,str.ori){
+ee=summary(lm.full.fac.1)$coefficients[ind.tbl[str.ee]=="1","Estimate"] %>% sum()
+lab.null=summary(lm.full.fac.1)$coefficients[(ind.tbl[str.lab]=="0")&(ind.tbl[str.ee]=="1"),"Estimate"] %>% sum()
+i.levels=bioassay.fac %>% pull(str.ori) %>% levels()
+i.n=i.levels %>% length(.)
+lab.ee=length(i.n)
+for (i in 1:i.n){
+  lab.ee[i]=summary(lm.full.fac.1)$coefficients[(ind.tbl[str.lab]!=i.levels[i])&(ind.tbl[str.ee]=="1"),"Estimate"] %>% sum()
 }
-eff.coef(lm.full.fac.1,"EE") #+
-eff.coef(lm.full.fac.1,"ZM") #-
+res=ee-lab.ee+lab.null
 
-#(2)SOME LABS:
-EE10:labPoulenc 
-paste0("EE[0-9.:]+lab","abc","|","EE[0-9.]+$","|")
-map_int(bioassay.read$lab,~eff.coef(lm.full.fac.1,.x) )
+return(tibble(i.levels,res))
+}
 
-ind.mat=matrix(.nrow=nrow())
-str_detect(.,"EE")
+labeff("EE","lab","lab")
+labeff("ZM","lab","lab")
+#(3)dose
+labeff("EE","EEdose","EE") #0.1-|-0.3
+labeff("ZM","ZMdose","ZM") #0-|-0.1
+#b.(1)dose+lab
 
+#b.(2)
+
+#c.(1)protocol
+labeff("EE","protocol","protocol")
+labeff("ZM","protocol","protocol")
 ```
 
 
