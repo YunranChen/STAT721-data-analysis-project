@@ -134,7 +134,7 @@ eff.tbl=function(lm.obj){
 ##protocol seperate or not?
 
 ##consider EE ZM as factor
-lm.full.fac.1=lm(data = bioassay.fac,formula = uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab+EE:protocol:lab+ZM:protocol:lab+lab:protocol+weight:lab)
+lm.full.fac.1=lm(data = bioassay.fac,formula = uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab+EE:protocol:lab+ZM:protocol:lab+lab:protocol) #weight:lab,
 plot(lm.full.fac.1)
 ##---Q1:
 #(1)significant in EE & ZM; 
@@ -178,5 +178,12 @@ labeff("EE","protocol","protocol")
 labeff("ZM","protocol","protocol")
 ```
 
+```{r lm.full.fac.2}
+##without 3 interaction--simple
+lm.full.fac.2=lm(data = bioassay.fac,formula = uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab) 
+anova(lm.full.fac.2)
+plot(lm.full.fac.2)
+summary(lm.full.fac.2)
+```
 
 

@@ -1,0 +1,86 @@
+---
+title: "part2"
+author: "Yunran Chen"
+date: "2017/12/9"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r library}
+library(tibble)
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(stringr)
+#install.packages("BAS")
+library(BAS)
+
+bioassay.read = read.table("http://stat.duke.edu/sites/stat.duke.edu/files/bioassay.txt",
+                       header=T,stringsAsFactors = FALSE) %>% as.tibble() 
+
+bioassay=bind_cols(map_df(bioassay.read %>% select(uterus,weight,EE,ZM),~.x %>% as.numeric(.)),
+                   map_df(bioassay.read %>% select(protocol,lab,group),~.x %>% as.factor(.))
+                   ) %>% as.tibble() %>% na.omit()
+bioassay.fac=bioassay %>% mutate(EE=as.factor(EE),ZM=as.factor(ZM))
+```
+
+## Part II: Bayesian
+
+```{r bays.fac.1.gprior}
+#EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab
+n=nrow(bioassay.fac)
+X.fac.1=model.matrix(data=bioassay.fac,object =~ EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)
+p=ncol(X.fac.1)-1
+bas.fac.1=bas.lm(formula =uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab,
+                 data=bioassay.fac,
+                 prior="g-prior",
+                 alpha=n,
+                 #n.models=20000,
+                 method = "MCMC",
+                 thin=10,
+                 #initprobs = "eplogp",
+                 MCMC.iterations = 500000)
+bas.fac.1
+image(bas.fac.1)
+plot(bas.fac.1)
+#summary(bas.fac.1)
+coef(bas.fac.1) %>% plot(.,ask=F)
+##diagonose
+diagnostics(bas.fac.1,"pip")
+#cv.summary.bas()
+```
+
+```{r bays.fac.1.hypergn}
+#EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab
+n=nrow(bioassay.fac)
+X.fac.1=model.matrix(data=bioassay.fac,object =~ EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)
+
+bas.fac.2=bas.lm(formula =uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab,
+                 data=bioassay.fac,
+                 prior="hyper-g-n",
+                 alpha=n,
+                 #n.models=20000,
+                 method = "MCMC",
+                 thin=10,
+                 #initprobs = "eplogp",
+                 MCMC.iterations = 500000)
+bas.fac.2
+image(bas.fac.2)
+plot(bas.fac.2)
+#summary(bas.fac.2)
+coef(bas.fac.2) %>% plot(.,ask=F)
+##diagonose
+diagnostics(bas.fac.2,"pip")
+#predict(bas.fac.2,)
+#cv.summary.bas()
+```
+
+
+
+
+
