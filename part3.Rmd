@@ -1,0 +1,130 @@
+---
+title: "part3"
+author: "Yunran Chen"
+date: "2017/12/9"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#install.packages("R2jags")
+library("R2jags")
+```
+
+
+
+library the package we need:
+
+```{r, message=FALSE, warning=FALSE}
+### R interface to JAGS:
+suppressMessages(library(R2jags))
+
+```
+
+Prepare the data
+
+```{r}
+
+# Create a data list with inputs for JAGS
+
+X.fac=model.matrix(data=bioassay.fac,object =~ lab+EE+ZM+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)[,-1]
+n=nrow(bioassay.fac)
+## scale X such that X^TX has ones on the diagonal;
+## scale divides by the standard deviation so we need
+## to divide by the sqrt(n-1)
+scaled.X = scale(X.fac)/sqrt(n-1)
+# are diagonal elements 1?
+# check
+#t(scaled.X) %*% scaled.X
+data = list(Y = bioassay.fac$uterus, 
+            X=scaled.X, 
+            p=ncol(scaled.X),
+            n = n)
+
+#extract the scales from the scaled object and fix--add to attr
+data$scales = attr(scaled.X, "scaled:scale")*sqrt(n-1) # fix scale
+data$Xbar = attr(scaled.X, "scaled:center")
+
+```
+
+
+
+```{r jags}
+##For jags: need to use <-; use precision instead of sigma_sq
+rr.model = function() {
+  a <- 9
+  shape<-a/2
+
+  for (i in 1:n) {
+    mu[i] <- alpha0 + inprod(X[i,], alpha)
+#    lambda[i] ~ dgamma(shape, shape)
+    prec[i] <- phi
+    Y[i] ~ dnorm(mu[i], prec[i])
+  }
+  phi ~ dgamma(1.0E-6, 1.0E-6) ##jags do not allow improper prior
+  alpha0 ~ dnorm(0, 1.0E-6)
+
+  for (j in 1:p) {
+    phi.l[j]=pow(i.phi.l[j], -2)    
+    prec.beta[j] <- lambda.l[j]*phi*phi.l[j]
+    alpha[j] ~ dnorm(0, prec.beta[j])
+    # transform back to original coefficients
+    beta[j] <- alpha[j]/scales[j]
+    lambda.l[j] ~ dgamma(shape, shape)
+    i.phi.l[j] ~ dt(0,1,1)
+
+  }
+
+  # transform intercept to usual parameterization 
+  beta0 <- alpha0 - inprod(beta[1:p], Xbar)
+
+  sigma <- pow(phi, -.5)
+}
+
+# parameters to monitor
+parameters = c("beta0", "beta", "sigma","lambda.l", "phi.l")
+
+# run jags from R  (see Resources to install)
+stack.sim = jags(data, 
+                 inits=NULL, 
+                 par=parameters,
+                 model=rr.model, 
+                 n.iter=50000)
+```
+
+Analysis on simulation result.
+
+
+```{r}
+# create an MCMC object with the results for the MCMC draws
+stack.mcmc = as.mcmc(stack.sim$BUGSoutput$sims.matrix)  #get the simulation points
+
+```
+
+###c.summary
+
+In the case $\delta < a $, the result of JAGS, BMA, MC3.REG are pretty similar. The result of r student statistic does not behave well. In the case $\delta$ is pretty close to a, the result of JAGS get influenced. It may not detect outlier so sensitively. It is because when I set $\delta$ relative large, the "outlier" may not behave like "outlier" in the model. So it is "sensitive" to $\delta$
+
+
+####c.1.From JAGS
+
+From the boxplot, we can see that lambda[21] is significant different from all other lambdas. So it suggest that the sample point 4,21 may be an outlier. And sample point 1,3 are also "suspect" to be outlier. (But not deviate too far compared to 4,21.) Actually, I tried $\delta=1,2$, the result is pretty similar. But if I choose the $\deta=8$ (relative large, close to the a) The "outlier" we suspect before may not behave like an obvious outlier. But they still deviate from other sample points. 
+
+```{r}
+mcmc.df=stack.mcmc %>% as.tibble()
+lambda.plot=mcmc.df %>% select(`lambda[1]`:`lambda[21]`) %>% gather(.)
+lamda.levels=paste0("lambda[",1:21,"]") 
+ggplot(data = lambda.plot,mapping = aes(x = key,y = value,fill=key))+geom_boxplot()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+scale_x_discrete(limits=lamda.levels)+ guides(fill=FALSE)
+
+apply(stack.mcmc[,c("beta0","beta[1]","beta[2]","beta[3]")],2,quantile,c(.025, .975))
+#plot(stack.sim)
+#summary(stack.sim)  # names of objects in bf.sim
+#stack.sim  # print gives summary
+#quantile(stack.mcmc[,"beta0"], c(.025, .5, .975))
+#HPDinterval(stack.mcmc)
+```
+
