@@ -15,6 +15,24 @@ library("R2jags")
 ```
 
 
+```{r library}
+library(tibble)
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(stringr)
+
+bioassay.read = read.table("http://stat.duke.edu/sites/stat.duke.edu/files/bioassay.txt",
+                       header=T,stringsAsFactors = FALSE) %>% as.tibble()
+
+bioassay=bind_cols(map_df(bioassay.read %>% select(uterus,weight,EE,ZM),~.x %>% as.numeric(.)),
+                   map_df(bioassay.read %>% select(protocol,lab,group),~.x %>% as.factor(.))
+                   ) %>% as.tibble() %>% na.omit()
+bioassay.fac=bioassay %>% mutate(EE=as.factor(EE),ZM=as.factor(ZM))
+bioassay.hfac=bioassay %>% mutate(ZM=as.factor(ZM))
+```
+
 
 library the package we need:
 
@@ -30,8 +48,8 @@ Prepare the data
 
 # Create a data list with inputs for JAGS
 
-X.fac=model.matrix(data=bioassay.fac,object =~ lab+EE+ZM+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)[,-1]
-n=nrow(bioassay.fac)
+X.fac=model.matrix(data=bioassay.hfac,object =~ EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)[,-1]
+n=nrow(bioassay)
 ## scale X such that X^TX has ones on the diagonal;
 ## scale divides by the standard deviation so we need
 ## to divide by the sqrt(n-1)
@@ -39,7 +57,7 @@ scaled.X = scale(X.fac)/sqrt(n-1)
 # are diagonal elements 1?
 # check
 #t(scaled.X) %*% scaled.X
-data = list(Y = bioassay.fac$uterus, 
+data = list(Y = bioassay$uterus, 
             X=scaled.X, 
             p=ncol(scaled.X),
             n = n)
@@ -55,26 +73,25 @@ data$Xbar = attr(scaled.X, "scaled:center")
 ```{r jags}
 ##For jags: need to use <-; use precision instead of sigma_sq
 rr.model = function() {
-  a <- 9
+  a <- 2
   shape<-a/2
 
   for (i in 1:n) {
     mu[i] <- alpha0 + inprod(X[i,], alpha)
-#    lambda[i] ~ dgamma(shape, shape)
     prec[i] <- phi
     Y[i] ~ dnorm(mu[i], prec[i])
   }
-  phi ~ dgamma(1.0E-6, 1.0E-6) ##jags do not allow improper prior
-  alpha0 ~ dnorm(0, 1.0E-6)
+  phi ~ dgamma(1.0E-6, 1.0E-6)  ##jags do not allow improper prior
+  alpha0 ~ dnorm(0, 1.0E-6) 
 
   for (j in 1:p) {
-    phi.l[j]=pow(i.phi.l[j], -2)    
+    phi.l[j] <- pow(i.phi.l[j], -2)    
     prec.beta[j] <- lambda.l[j]*phi*phi.l[j]
     alpha[j] ~ dnorm(0, prec.beta[j])
     # transform back to original coefficients
     beta[j] <- alpha[j]/scales[j]
     lambda.l[j] ~ dgamma(shape, shape)
-    i.phi.l[j] ~ dt(0,1,1)
+    i.phi.l[j] ~ dt(0,1,1)%_%T(0,)
 
   }
 
@@ -88,7 +105,7 @@ rr.model = function() {
 parameters = c("beta0", "beta", "sigma","lambda.l", "phi.l")
 
 # run jags from R  (see Resources to install)
-stack.sim = jags(data, 
+stack.sim.hfac = jags(data, 
                  inits=NULL, 
                  par=parameters,
                  model=rr.model, 
