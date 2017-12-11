@@ -9,6 +9,7 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+
 ## 1.Summary
 
 ## 2.Introduction
@@ -18,41 +19,6 @@ Uterotropic bioassay is one approach for screening chemicals for endocrine disru
 The dataset including: response variable `uterus`(Uterus weight (mg)); key explanatory variables: `EE`(Dose of estrogen agonist,mg/kg/day),`ZM`(Dose of estrogen antagonist, mg/kg/day);other explanatory variables:  `Lab`(19 Laboratory at which assay was conducted), `Protocol`(4 levels factor, representing immature female rats dosed by oral gavage (3 days), immature female rats dosed by injection (3 days), adult ovariectomized female rats dosed by injection (3 days), adult ovariectomized female rats dosed by injection (7 days) seperately.); `Weight`(Body weight of rat (g)),`Group` (Lab replicate group (6 rats were used per group)).
 
 The characteristics of the dataset.
-
-```{r library, message=FALSE, warning=FALSE,echo=FALSE}
-library(tibble)
-library(dplyr)
-library(purrr)
-library(tidyr)
-library(ggplot2)
-library(stringr)
-
-bioassay.read = read.table("http://stat.duke.edu/sites/stat.duke.edu/files/bioassay.txt",
-                       header=T,stringsAsFactors = FALSE) %>% as.tibble()
-
-bioassay=bind_cols(map_df(bioassay.read %>% select(uterus,weight,EE,ZM),~.x %>% as.numeric(.)),
-                   map_df(bioassay.read %>% select(protocol,lab,group),~.x %>% as.factor(.))
-                   ) %>% as.tibble()
-bioassay.fac=bioassay %>% mutate(EE=as.factor(EE),ZM=as.factor(ZM))
-```
-
-```{r summary, echo=FALSE}
-##1)We can consider `weight` and `uterus` as continuous variable. All other variables only have seperate values.
-summary(bioassay)
-bioassay %>% select(EE) %>% table()
-bioassay %>% select(ZM) %>% table()
-##2)There are significant interaction among variables. Because each labs adopted differet treatment.
-table(bioassay$EE,bioassay.fac$lab)
-##visualization for points
-ggplot(data=bioassay,mapping = aes(y = lab,x = protocol,color=as.factor(ZM)))+
-  geom_jitter(alpha=0.5)
-ggplot(data=bioassay.fac,mapping = aes(y = lab,x = ZM,color=protocol))+
-  geom_jitter(alpha=0.5)
-ggplot(data=bioassay,mapping = aes(y = lab,x = protocol,color=as.factor(EE)))+
-  geom_jitter(alpha=0.5)
-ggplot(data=bioassay,mapping = aes(y = lab,x = protocol,color=as.factor(EE)))+
-     geom_count(alpha=0.5,position = "jitter")
-```
 
 ## 3.Methods and Model
 
@@ -65,29 +31,6 @@ From the plot, we get three main information on the dataset.1)linear regession a
 I chose boxplot to illustrate the relationship between continuous variable (`uterus`) and discrete variable(`EE` and `ZM`).Different colors represent different `labs`, and I use facet to represent different `protocol`. From the plot1, we can see that: 1)The trend for expection looks like quadratic form; But overall, the uterus decrease as the zm increase; The variance under different level of `ZM` is different. The variance of `ZM`=0 is much larger than the other two groups; 2)Overall, the boxplots look similar. However, the different labs act different especially when `ZM`=0. Some labs, like TNO in `protocol="B"`,`ZM=0.1` acts like an "outlier". There is interaction between `lab` and `ZM`. 3)Each labs adopted different treatment. So for some case, limited labs conducted the study. Similar for the case `EE`.
 
 I chose scatterplots with regression line to illustrate the relationship between two continuous variable (`uterus` and `weight`). Because the significant differece on `weight` between immature rats and adult rats, I use facet to represent different `protocol`. Notice the range for y-axis is different. We can see that: 1)For immature rats, `weight` seems do not effect the `uterus`. While for adult rats, the `uterus` decrease as the `weight` increase. There is significant interaction.
-
-```{r EDA,echo=FALSE}
-##---------------------boxplot
-##different labs have diff mean on ZM. interaction on labs and protocol.
-##when consider ZM as numeric, the diff is not sig in pic. but in factor - diff.
-###4var:ZM
-
-ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = ZM,color=lab))+
-  geom_boxplot()+theme_bw()+facet_wrap(~ protocol)
-##caculate the mean for different group 
-#bioassay.fac %>% group_by(ZM) %>% summarize(mean=mean(uterus,na.rm=T))
-
-##4var:EE
-ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = EE,color=lab))+
-  geom_boxplot()+theme_bw()+facet_wrap(~ protocol)
-##caculate the mean for different group.
-#bioassay.fac %>% group_by(EE) %>% summarize(mean=mean(uterus,na.rm=T))
-
-##weights
-ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = weight))+
-  geom_point()+geom_smooth(method = "lm")+theme_bw()+facet_wrap(~ protocol,scales = "free")
-
-```
 
 ### 3.2 Model
 
@@ -107,36 +50,234 @@ Notes:
 
 ### 3.3 Methods
 
-I use MLE/OLS to estimate the parameters. I use F-test and t-test to settle down the problems we care about.
+I use MLE/OLS to estimate the parameters. I use F-test, t-test for a single coefficient and t-test for linear combination of coefficients to answer the ques we care about. Actually, all the questions can be answer by the plot.(See the Page 3 for details.)
 
+a.1 Is the uterotrophic bioassay successful overal at identifying effects of EE and ZM
 
+Using F-test. 
 
+And check all the sign for the coefficients `EE` (positive) and `ZM` (negative). 
+
+Hypothesis: $H_0: \beta_{11}=\beta_{12}=\beta_{13}=0$(failed to detect) v.s. $H_1:\exists \beta_{1i} \neq 0$(detect successfully)
+
+statistics: F-stat(using anova() in R)
+
+$F=\frac{\parallel (P_k - P_{k-1})Y \parallel ^2/(r(P_k)-r(P_{k-1}))}{\hat{\sigma}^2} \sim F(r(P_k)-r(P_{k-1}),n-p)$
+
+Note: here the $\beta{1i}$ means all the coefficients before `EE`. Similar F-test for `ZM`
+
+a.2 Do some labs fail to detect such effects?
+
+Constructing t-test for linear combination of coefficients.Take lab Bayer for example. The sum of coefficients before `EE` (`EE` here including `EE0.01`, `EE0.03`,...) and `EE:labBayer` is t-distrbution. All also, we need to check the sign.
+
+Hypothesis: $H_0: \Sigma_i (\beta_{1i}+\beta_{1i:labBayer})=0$(lab Bayer failed to detect) v.s. $H_1:\Sigma_i (\beta_{1i}+\beta_{1i:labBayer}) \neq 0$(lab Bayer detect successfully)
+
+statistics: t-stat(need construct function in R)
+
+$t=\frac{\lambda^T\hat{\beta}-\lambda^Tb_0}{\hat{\sigma}\sqrt{\lambda^T(X^TX)^{-1}\lambda}} \sim t(n-p,0,1)$
+
+where $\lambda_i=1$ for the position `EE` or `EE:labBayer`,else $\lambda_i=0$.
+
+a.3 The change level of dose for the effect? Does this vary across labs?
+
+Using t-test for single coefficient and find the change point from insignificant to significant. For the first question, we concerntrate on coefficients of `EE`, `ZM`. For the second question, for each $lab_i$ we concerntrate on coefficients of `EE:lab_i`, `ZM:lab_i`.
+
+Hypothesis: $H_0: \beta_{1i}=0$ v.s. $H_1:\beta_{1i} \neq 0$
+
+statistics: t-stat
+
+$t=\frac{\hat{\beta}-b_0}{\hat{\sigma}\sqrt{(X^TX)^{-1}}} \sim t(n-p,0,1)$
+
+b Does the dose response vary across labs? If so, which one stands out as being different?
+
+Using t-test for single coefficient.For each $lab_i$ we concerntrate on coefficients of `EE:lab_i`, `ZM:lab_i`. For certain $dose_j$, if some of them are significant, some are not. We would say the dose response vary across labs. If some of the pvalue are especially small, those labs may stand out as being different.
+
+c Do the protocols differ in their sensitivity to detect the effects? Is there one can be recommend?
+
+Using F-test for the interaction `EE:protocol`, `ZM:Protocol`.If they are significant, we may say the protocols differ. 
+
+A good protocol should have following properties: 1)Robust. The variance of coefficients of `EE:protocol_i` and `ZM:protocol_i` should be small. 2)Significant.The absolute value of coefficients before `EE:protocol_i` and `ZM:protocol_i` should be large, so that we can easy to detect. 3)Consistent. Under the protocol, different labs should get similar result.  The 1)3) can be settled down by F-test. 2) can be settled down by comparing the estimator.(the location of confidence interval)
 
 Notes:
 
 1. The main problem of this dataset is too much factors and interactions leading to too much predictor. If adopted Bayesian methods, it would be time consuming.(There are some improvements--adding selection process in Appendix) So I adopted MLE/OLS for it is simple and fast.
 
-2. For overall test for discrete variable (factors), I adopted F-test. And for specific problem, I use t-test.(Sometimes need to construct t-test on my own.)
+2. For overall test for discrete variable (factors), I adopted F-test. And for specific problem, I use t-test.
 
 ### 3.4 Outliers and Influential points
 
+According the residuals, there are three possible "outliers"(). However, I text these outliers in to the boxplots. I find that some are outliers in some aspect while not in other aspect. And all these outlier comes from 
+## 4.Results
 
+```{r library, message=FALSE, warning=FALSE,echo=FALSE}
+library(tibble)
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(stringr)
 
-```{r lm.full.fac.2}
-##without 3 interaction--simple
-lm.full.fac.2=lm(data = bioassay.fac,formula = uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab) 
-anova(lm.full.fac.2)
-plot(lm.full.fac.2)
-summary(lm.full.fac.2)
-#Adjusted R-squared:  0.9538 
+bioassay.read = read.table("http://stat.duke.edu/sites/stat.duke.edu/files/bioassay.txt",
+                       header=T,stringsAsFactors = FALSE) %>% as.tibble()
 
-lm.full.q=lm(data = bioassay,formula = uterus~poly(EE,2)+poly(ZM,2)+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)
-summary(lm.full.q) #0.8286#p=69 
+bioassay=bind_cols(map_df(bioassay.read %>% select(uterus,weight,EE,ZM),~.x %>% as.numeric(.)),
+                   map_df(bioassay.read %>% select(protocol,lab,group),~.x %>% as.factor(.))
+                   ) %>% as.tibble()
+bioassay.fac=bioassay %>% mutate(EE=as.factor(EE),ZM=as.factor(ZM))
+```
+
+```{r summary}
+##1)We can consider `weight` and `uterus` as continuous variable. All other variables only have seperate values.
+summary(bioassay)
+bioassay %>% select(EE) %>% table()
+bioassay %>% select(ZM) %>% table()
+##2)There are significant interaction among variables. Because each labs adopted differet treatment.
+table(bioassay$EE,bioassay.fac$lab)
+##visualization for points
+#ggplot(data=bioassay,mapping = aes(y = lab,x = protocol,color=as.factor(ZM)))+
+#  geom_jitter(alpha=0.5)
+#ggplot(data=bioassay.fac,mapping = aes(y = lab,x = ZM,color=protocol))+
+#  geom_jitter(alpha=0.5)
+#ggplot(data=bioassay,mapping = aes(y = lab,x = protocol,color=as.factor(EE)))+
+#  geom_jitter(alpha=0.5)
+#ggplot(data=bioassay,mapping = aes(y = lab,x = protocol,color=as.factor(EE)))+
+#     geom_count(alpha=0.5,position = "jitter")
 ```
 
 
-## 4.Results
+```{r EDA}
+##---------------------boxplot
+##different labs have diff mean on ZM. interaction on labs and protocol.
+##when consider ZM as numeric, the diff is not sig in pic. but in factor - diff.
+###4var:ZM
+outliers=c(1426,926,1586,1425,1946,2666)
+ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = ZM,color=lab))+
+  geom_boxplot()+theme_bw()+facet_wrap(~ protocol)+
+  geom_text(data=bioassay.fac[outliers,],
+            aes(label=outliers,color=lab,hjust=1.1))
+##caculate the mean for different group 
+#bioassay.fac %>% group_by(ZM) %>% summarize(mean=mean(uterus,na.rm=T))
+
+##4var:EE
+ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = EE,color=lab))+
+  geom_boxplot()+theme_bw()+facet_wrap(~ protocol)+
+  geom_text(data=bioassay.fac[outliers,],
+            aes(label=outliers,color=lab))
+##caculate the mean for different group.
+#bioassay.fac %>% group_by(EE) %>% summarize(mean=mean(uterus,na.rm=T))
+
+##weights
+ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = weight))+
+  geom_point()+geom_smooth(method = "lm")+theme_bw()+facet_wrap(~ protocol,scales = "free")+
+  geom_text(data=bioassay.fac[outliers,],
+            aes(label=outliers,color=lab))
+
+```
+
+
+```{r lm.full.fac}
+lm.full.fac=lm(data = bioassay.fac[-c(1586,926),],formula = uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab) 
+anova(lm.full.fac)
+plot(lm.full.fac)
+summary(lm.full.fac)
+#Adjusted R-squared:  0.9538 
+
+#lm.full.q=lm(data = bioassay,formula = #uterus~poly(EE,2)+poly(ZM,2)+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)
+#anova(lm.full.q)
+#summary(lm.full.q) #0.8286#p=69 
+```
+
 
 ## 5.Conclusions
 
 ## Part I: OLS/MLE
+
+
+```{r lm.full.2}
+
+###------Q1
+#ind=str_detect(summary(lm.full.simple)$coefficients %>% rownames(),"EE")
+#eff.coeff.2=summary(lm.full.simple)$coefficients %>%
+#  as.data.frame() %>% 
+#  mutate(coeff=rownames(.)) %>% 
+#  filter(ind)
+
+```
+
+```{r functions}
+#eff.tbl=function(lm.obj){
+#  
+#  ind.mat=matrix(0,nrow=nrow(summary(lm.obj)$coefficients),ncol=6)
+#  colnames(ind.mat)=c("EE","ZM","lab","protocol","EEdose","ZMdose")
+#  ind.mat=cbind(coef=summary(lm.obj)$coefficients%>%rownames(.),ind.mat)
+#  ind.mat[str_detect(ind.mat[,1],"EE"),"EE"]=1
+#  ind.mat[str_detect(ind.mat[,1],"ZM"),"ZM"]=1
+#  
+#  for (dose in c(bioassay.fac$EE %>% levels())){
+#     ind.mat[str_detect(ind.mat[,1],paste0("EE",dose)),"EEdose"]=dose
+#  }
+#  for (dose in c(bioassay.fac$ZM %>% levels())){
+#     ind.mat[str_detect(ind.mat[,1],paste0("ZM",dose)),"ZMdose"]=dose
+#  }
+#  for (lab in c(bioassay.fac$lab %>% levels())){
+#     ind.mat[str_detect(ind.mat[,1],paste0("lab",lab)),"lab"]=lab
+#  }     
+#  for (protocol in c(bioassay.fac$protocol %>% levels())){
+#     ind.mat[str_detect(ind.mat[,1],paste0("protocol",protocol)),"protocol"]=protocol
+#  }  
+#  ind.tbl=ind.mat%>% as.tibble()
+#  return(ind.tbl)
+#}
+#
+```
+
+
+
+```{r lm.full.fac.1}
+
+
+###consider EE ZM as factor
+#lm.full.fac.1=lm(data = bioassay.fac,formula = #uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab+EE:protocol:lab+ZM:protocol:lab+lab:protocol) ##weight:lab,
+#plot(lm.full.fac.1)
+###---Q1:
+##(1)significant in EE & ZM; 
+#anova(lm.full.fac.1)
+##(1)EE:+;ZM:-
+#ind.tbl=eff.tbl(lm.full.fac.1)
+#ind.tbl[1,]="1"
+#ee=summary(lm.full.fac.1)$coefficients[ind.tbl$EE=="1","Estimate"] %>% sum()
+#ee
+#zm=summary(lm.full.fac.1)$coefficients[ind.tbl$ZM=="1","Estimate"] %>% sum()
+#zm
+##(2)some labs:
+###basis:Basf
+###EE:+
+###ZM:-
+#labeff=function(str.ee,str.lab,str.ori){
+#ee=summary(lm.full.fac.1)$coefficients[ind.tbl[str.ee]=="1","Estimate"] %>% sum()
+#lab.null=summary(lm.full.fac.1)$coefficients[(ind.tbl[str.lab]=="0")&(ind.tbl[str.ee]=="1"),"Estimate"] %>% sum()
+#i.levels=bioassay.fac %>% pull(str.ori) %>% levels()
+#i.n=i.levels %>% length(.)
+#lab.ee=length(i.n)
+#for (i in 1:i.n){
+#  lab.ee[i]=summary(lm.full.fac.1)$coefficients[(ind.tbl[str.lab]!=i.levels[i])&(ind.tbl[str.ee]=="1"),"Estimate"] %>% #sum()
+#}
+#res=ee-lab.ee+lab.null
+#
+#return(tibble(i.levels,res))
+#}
+#
+#labeff("EE","lab","lab")
+#labeff("ZM","lab","lab")
+##(3)dose
+#labeff("EE","EEdose","EE") #0.1-|-0.3
+#labeff("ZM","ZMdose","ZM") #0-|-0.1
+##b.(1)dose+lab
+#
+##b.(2)
+#
+##c.(1)protocol
+#labeff("EE","protocol","protocol")
+#labeff("ZM","protocol","protocol")
+```
+
