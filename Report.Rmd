@@ -15,18 +15,101 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Uterotropic bioassay is one approach for screening chemicals for endocrine disrupting effect. An international mutilaboratory study was conducted with this method using known estrogen agonist(`EE`) and antagonist(`ZM`). The main goal is to assess whether the results were consistent across the laboratories. For one aspect, we care about:1)whether the method is successful for identifying endocrine disrupting effect of `EE` and `ZM`; 2)how dose response? is there a "change" dose level of `EE` for endocrine disrupting effect; 3)do the protocols differ in their sensitivity to detect estrogenic and anti-estrogenic effects; which one is recommended? For the other aspect, we care about:1) whether the results for abovementioned problems vary across labs;2)which labs stand out for being different?
 
-The dataset including: response variable `uterus`(Uterus weight (mg)); key explanatory variables: `EE`(Dose of estrogen agonist,mg/kg/day),`ZM`(Dose of estrogen antagonist, mg/kg/day), `Lab`(Laboratory at which assay was conducted), `Protocol`(4 levels factor, representing immature female rats dosed by oral gavage (3 days), immature female rats dosed by injection (3 days), adult ovariectomized female rats dosed by injection (3 days), adult ovariectomized female rats dosed by injection (7 days) seperately.); other explanatory variables: `Weight`(Body weight of rat (g)),`Group` (Lab replicate group (6 rats were used per group)).
+The dataset including: response variable `uterus`(Uterus weight (mg)); key explanatory variables: `EE`(Dose of estrogen agonist,mg/kg/day),`ZM`(Dose of estrogen antagonist, mg/kg/day);other explanatory variables:  `Lab`(19 Laboratory at which assay was conducted), `Protocol`(4 levels factor, representing immature female rats dosed by oral gavage (3 days), immature female rats dosed by injection (3 days), adult ovariectomized female rats dosed by injection (3 days), adult ovariectomized female rats dosed by injection (7 days) seperately.); `Weight`(Body weight of rat (g)),`Group` (Lab replicate group (6 rats were used per group)).
 
-Here is a summary for the data:
+The characteristics of the dataset.
+
+```{r library, message=FALSE, warning=FALSE,echo=FALSE}
+library(tibble)
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(stringr)
+
+bioassay.read = read.table("http://stat.duke.edu/sites/stat.duke.edu/files/bioassay.txt",
+                       header=T,stringsAsFactors = FALSE) %>% as.tibble()
+
+bioassay=bind_cols(map_df(bioassay.read %>% select(uterus,weight,EE,ZM),~.x %>% as.numeric(.)),
+                   map_df(bioassay.read %>% select(protocol,lab,group),~.x %>% as.factor(.))
+                   ) %>% as.tibble()
+bioassay.fac=bioassay %>% mutate(EE=as.factor(EE),ZM=as.factor(ZM))
+```
 
 ```{r summary}
-summary(bio)
+##1)We can consider `weight` and `uterus` as continuous variable. All other variables only have seperate values.
+summary(bioassay)
+bioassay %>% select(EE) %>% table()
+bioassay %>% select(ZM) %>% table()
+##2)There are significant interaction among variables. Because each labs adopted differet treatment.
+table(bioassay$EE,bioassay.fac$lab)
+##visualization for points
+ggplot(data=bioassay,mapping = aes(y = lab,x = protocol,color=as.factor(ZM)))+
+  geom_jitter(alpha=0.5)
+ggplot(data=bioassay.fac,mapping = aes(y = lab,x = ZM,color=protocol))+
+  geom_jitter(alpha=0.5)
+ggplot(data=bioassay,mapping = aes(y = lab,x = protocol,color=as.factor(EE)))+
+  geom_jitter(alpha=0.5)
+ggplot(data=bioassay,mapping = aes(y = lab,x = protocol,color=as.factor(EE)))+
+     geom_count(alpha=0.5,position = "jitter")
 ```
 
 ## 3.Methods and Model
 
-1)
+### 3.1 EDA
+
+From the plot, we get three main information on the dataset.1)linear regession assumption.(quadratic form)
+2)There are significant interaction among variables. Because each labs adopted differet treatment. So we have to include the iteraction into our regression model.
+3)Many discrete variables. We need to keep the model simple.
+
+I chose boxplot to illustrate the relationship between continuous variable (`uterus`) and discrete variable(`EE` and `ZM`).Different colors represent different `labs`, and I use facet to represent different `protocol`. From the plot1, we can see that: 1)The trend for expection looks like quadratic form; But overall, the uterus decrease as the zm increase; The variance under different level of `ZM` is different. The variance of `ZM`=0 is much larger than the other two groups; 2)Overall, the boxplots look similar. However, the different labs act different especially when `ZM`=0. Some labs, like TNO in `protocol="B"`,`ZM=0.1` acts like an "outlier". There is interaction between `lab` and `ZM`. 3)Each labs adopted different treatment. So for some case, limited labs conducted the study. Similar for the case `EE`.
+
+I chose scatterplots with regression line to illustrate the relationship between two continuous variable (`uterus` and `weight`). Because the significant differece on `weight` between immature rats and adult rats, I use facet to represent different `protocol`. Notice the range for y-axis is different. We can see that: 1)For immature rats, `weight` seems do not effect the `uterus`. While for adult rats, the `uterus` decrease as the `weight` increase. There is significant interaction.
+
+```{r EDA}
+##---------------------boxplot
+##different labs have diff mean on ZM. interaction on labs and protocol.
+##when consider ZM as numeric, the diff is not sig in pic. but in factor - diff.
+###4var:ZM
+
+ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = ZM,color=lab))+
+  geom_boxplot()+theme_bw()+facet_wrap(~ protocol)
+##caculate the mean for different group 
+#bioassay.fac %>% group_by(ZM) %>% summarize(mean=mean(uterus,na.rm=T))
+
+##4var:EE
+ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = EE,color=lab))+
+  geom_boxplot()+theme_bw()+facet_wrap(~ protocol)
+##caculate the mean for different group.
+#bioassay.fac %>% group_by(EE) %>% summarize(mean=mean(uterus,na.rm=T))
+
+##weights
+ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = weight))+
+  geom_point()+geom_smooth(method = "lm")+theme_bw()+facet_wrap(~ protocol,scales = "free")
+
+```
+
+### 3.2 Model
+
+I build a linear regression model with all variables except `group`. Apart from `weight` and `uterus`, I consider all other variables as factor. Also, I include the interaction between estrogen chemicals and different labs, protocols. Notice for the factors need to use a set of dummy variables to represent, so there are 218 predictors including the intercept.
+
+$Y=intercept+\beta_1EE+\beta_2ZM+\beta_3lab+\beta_4protocol+\beta_5weight+\beta_6EE:protocol+\beta_7ZM:protocol+\beta_8EE:lab+\beta_9ZM:lab+\epsilon$
+
+```{r lm.full.fac.2}
+##without 3 interaction--simple
+lm.full.fac.2=lm(data = bioassay.fac,formula = uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab) 
+anova(lm.full.fac.2)
+plot(lm.full.fac.2)
+summary(lm.full.fac.2)
+#Adjusted R-squared:  0.9538 
+
+lm.full.q=lm(data = bioassay,formula = uterus~poly(EE,2)+poly(ZM,2)+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)
+summary(lm.full.q) #0.8286#p=69 
+```
+
 
 ## 4.Results
 
 ## 5.Conclusions
+
+## Part I: OLS/MLE

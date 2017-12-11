@@ -9,13 +9,13 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
 #install.packages("R2jags")
 library("R2jags")
 ```
 
 
-```{r library}
+```{r library, message=FALSE, warning=FALSE, paged.print=FALSE}
 library(tibble)
 library(dplyr)
 library(purrr)
@@ -44,11 +44,11 @@ suppressMessages(library(R2jags))
 
 Prepare the data
 
-```{r}
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
 
 # Create a data list with inputs for JAGS
 
-X.fac=model.matrix(data=bioassay.hfac,object =~ EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)[,-1]
+X.fac=model.matrix(data=bioassay,object =~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)[,-1]
 n=nrow(bioassay)
 ## scale X such that X^TX has ones on the diagonal;
 ## scale divides by the standard deviation so we need
@@ -109,7 +109,9 @@ stack.sim.hfac = jags(data,
                  inits=NULL, 
                  par=parameters,
                  model=rr.model, 
-                 n.iter=50000)
+                 n.iter=30000)
+saveRDS(stack.sim.hfac, "stack.sim.rds")
+stack.sim=readRDS("stack.sim.rds")
 ```
 
 Analysis on simulation result.
