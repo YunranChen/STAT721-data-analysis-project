@@ -1,0 +1,32 @@
+---
+title: "Report"
+author: "Yunran Chen"
+date: "2017/12/10"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1.Summary
+
+## 2.Introduction
+
+Uterotropic bioassay is one approach for screening chemicals for endocrine disrupting effect. An international mutilaboratory study was conducted with this method using known estrogen agonist(`EE`) and antagonist(`ZM`). The main goal is to assess whether the results were consistent across the laboratories. For one aspect, we care about:1)whether the method is successful for identifying endocrine disrupting effect of `EE` and `ZM`; 2)how dose response? is there a "change" dose level of `EE` for endocrine disrupting effect; 3)do the protocols differ in their sensitivity to detect estrogenic and anti-estrogenic effects; which one is recommended? For the other aspect, we care about:1) whether the results for abovementioned problems vary across labs;2)which labs stand out for being different?
+
+The dataset including: response variable `uterus`(Uterus weight (mg)); key explanatory variables: `EE`(Dose of estrogen agonist,mg/kg/day),`ZM`(Dose of estrogen antagonist, mg/kg/day), `Lab`(Laboratory at which assay was conducted), `Protocol`(4 levels factor, representing immature female rats dosed by oral gavage (3 days), immature female rats dosed by injection (3 days), adult ovariectomized female rats dosed by injection (3 days), adult ovariectomized female rats dosed by injection (7 days) seperately.); other explanatory variables: `Weight`(Body weight of rat (g)),`Group` (Lab replicate group (6 rats were used per group)).
+
+Here is a summary for the data:
+
+```{r summary}
+summary(bio)
+```
+
+## 3.Methods and Model
+
+1)
+
+## 4.Results
+
+## 5.Conclusions
