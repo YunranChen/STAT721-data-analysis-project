@@ -209,6 +209,8 @@ res %>% filter(str_detect(res$coef,"ZM.*protocol"))
 
 ### Part II
 
+With the same model, using Bayesian Average Model to estimate the parameter with hyper-g-n prior(mixture prior). To answer the questions, I mainly concentrate on $Pr(\gamma_i=0)$ and the shape of posterior distribution for $\beta_i$ (or confidence interval). 
+
 ```{r bays.fac.1.gprior}
 #EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab
 n=nrow(bioassay.fac)
@@ -233,7 +235,30 @@ diagnostics(bas.fac.1,"pip")
 #cv.summary.bas()
 ```
 
+```{r bays.fac.1.hypergn}
+n=nrow(bioassay.fac)
 
+bas.fac.2=bas.lm(formula =uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab,
+                 data=bioassay.fac,
+                 prior="hyper-g-n",
+                 alpha=n,
+                 #n.models=20000,
+                 method = "MCMC",
+                 thin=10,
+                 #initprobs = "eplogp",
+                 MCMC.iterations = 500000)
+
+##diagonose
+diagnostics(bas.fac.2,"pip")
+##More iteration would be better
+
+#image(bas.fac.2)
+#plot(bas.fac.2)
+summary(bas.fac.2)
+coef(bas.fac.2) %>% plot(.,ask=F)
+
+
+```
 ###Part III
 
 
@@ -312,7 +337,7 @@ stack.sim=readRDS("stack.sim.rds")
 Load the data I stored.
 
 ```{r load.data}
-
+stack.sim=readRDS("stack.sim.rds")
 ```
 
 Analysis on simulation result.
