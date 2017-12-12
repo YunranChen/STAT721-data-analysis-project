@@ -32,9 +32,29 @@ X.fac=model.matrix(data=bioassay.fac,object =~ EE+ZM+lab+protocol+weight+EE:prot
 
 Containing Part I to Part IV
 
-I use three different ways to settle down the problems. For part I(MLE), I mainly use t-test and F-test. For part II(BMA with hyper-g-n prior), I mainly use the posterior model probability, inclusive probability and the posterior pdf for each predictor. For part III(jags), I would just use visualization (CI) to illustrate. Actually, for each part, we can use boxplot to illustrate for convenience and directly. The long table and graph would be attached at the end of the document.
+I use three different ways to settle down the problems. For part I(MLE), I mainly use t-test and F-test. For part II(BMA with hyper-g-n prior), I mainly use the posterior model probability, inclusive probability and the posterior pdf for each predictor. For part III(jags), I would just use visualization (Credible Interval) to illustrate. Actually, for each part, we can use boxplot to illustrate for convenience and directly. The long table and graph would be attached at the end of the document.
 
+### Part IV
 
+The three method can get the same result for 
+
+Uterotrophic bioassay successful overall at identifying effects. Some labs fail to detect such effects. The dose response vary across labs. All three methods agree that "Huntingd","Poulenc" stands out as being different from each other. The protocols differ in their sensitivity to detect the effects. Protocol B is recommeded.
+
+The main difference:
+
+1.The frequentists act more strict. For "outliers", they show less tolerence. For the changing dose point, they require more.(EE3 v.s. EE1) Generally, Baysian methods take uncertainty into consideration which behave more "moderate".
+
+Method 3 (jags) showing more tolerence for "outliers" than Method 2 (bma) than Method 1 (MLE). This is because I adopted a prior with heavy tail in Method 3. Some "outliers" considered by Method1 may be "normal" in method 2,3("Bayer"). Some "outlier" considered by method 2 may be "normal" in method 1,3.("TNO")
+
+2.It is easy for frequentist to get the estimation of parameters. But it is complex to construct suitable test. Although it is really time-consuming to get the posterior distribution of parameters. But it would be easier to analysis based on the data. And the solution seems more natural.
+
+Improvements:
+
+1.I use different methods to answer the questions in three parts. So it may be hard to compare.
+
+2. For PartIII, I should adopt a prior for selecting the variable to decrease the computation.
+
+ 
 ### Part I
 
 #### summary
@@ -190,7 +210,7 @@ res %>% filter(as.numeric(p_value)<0.05) %>% slice(1:10)
 
 a.2 do some labs fail to detect such effects
 
-There are some labs fail to detect such effects, as follows:"Huntingd""Bayer""ChungKor""TNO""Zeneca". Or just pick out the labs with significant p value at "EE:lab_i" but opposite t value. ("Huntingd""Bayer""Zeneca")
+There are some labs fail to detect such effects, as follows:"Huntingd""Bayer""ChungKor""TNO""Zeneca". Or just pick out the labs with significant p value at "EE:lab_i" but opposite t value. ("Huntingd""Bayer""Zeneca") 
 
 ```{r}
 a.2.ee=t.test(lm.full.fac,"EE","lab","lab")$t.test
@@ -319,7 +339,7 @@ coef(bas.fac.2) %>% plot(.,ask=F,subset=ind.zm)
 
 a.2 Concerntrate on `EE:lab_i`, `ZM:lab_i`. Pick out the labs with high inclusive probability but opposite location compared to others. ("Huntingd""Zeneca""TNO""KoreaPar""ChungKor""Poulenc""EnvTox") Simply, the rule is for   `EE`, if `EE:lab_i` is at the left side of the verticle black line and the verticle black line is short, we may consider the lab fail to detect. Similar for `ZM`.
 
-```{r,eval=FALSE}
+```{r,eval=FALSE,echo=FALSE}
 coef(bas.fac.2) %>% plot(.,ask=F)
 
 #bas.a_2=function(lm.obj,int.tbl,str.ee,str.lab,str.ori){
@@ -378,7 +398,7 @@ bas.coef %>% filter(str_detect(coef,"ZM.*protocol")) %>% arrange(sort(ci.length)
 ###Part III
 
 
-Because I set iteration=30000, and include many predictors. So the jags would be slow. So I load the data I got. An improvement for this is to adjust the distribution for $\sigma_L^2/\lambda_l$ behave like double exponential distribution. The hyperparameter a here is important for adjusting whether we want our model more robust. I chose a=2 for I want to let my model get less sensitive to labs "outliers". 
+Because I set iteration=30000, and include many predictors. So the jags would be slow. So I load the data I got. An improvement for this is to adjust the distribution for $\sigma_L^2/\lambda_l$ behave like double exponential distribution. The hyperparameter a here is important for adjusting whether we want our model more robust. I chose a=2 for I want to let my model get less sensitive to labs "outliers". I use credible interval to answer these questions.
 
 Prepare the data
 
@@ -461,22 +481,121 @@ stack.sim=readRDS("stack.sim.rds")
 Analysis on simulation result.
 
 
-```{r,eval=FALSE}
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
 # create an MCMC object with the results for the MCMC draws
 stack.mcmc = as.mcmc(stack.sim$BUGSoutput$sims.matrix)  #get the simulation points
 
+quan=function(x){
+  qu=quantile(x,c(.025, .975))
+  avg=mean(x)
+  res=c(qu,avg=avg)
+  return(res)}
+ci.all=apply(stack.mcmc,2,quan) %>% t(.)
 mcmc.df=stack.mcmc %>% as.tibble()
-lambda.plot=mcmc.df %>% select(`lambda[1]`:`lambda[21]`) %>% gather(.)
-lamda.levels=paste0("lambda[",1:21,"]") 
-ggplot(data = lambda.plot,mapping = aes(x = key,y = value,fill=key))+geom_boxplot()+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))+scale_x_discrete(limits=lamda.levels)+ guides(fill=FALSE)
+```
 
-apply(stack.mcmc[,c("beta0","beta[1]","beta[2]","beta[3]")],2,quantile,c(.025, .975))
-#plot(stack.sim)
-#summary(stack.sim)  # names of objects in bf.sim
-#stack.sim  # print gives summary
-#quantile(stack.mcmc[,"beta0"], c(.025, .5, .975))
-#HPDinterval(stack.mcmc)
+
+a.1 The method is successful overall at identifying effects because the credible interval for `EE` is above 0, the credible interval for `ZM` is below 0.
+
+```{r}
+##code from https://stackoverflow.com/questions/21310609/ggplot2-box-whisker-plot-show-95-confidence-intervals-remove-outliers 
+
+X.fac.jags=model.matrix(data=bioassay,object =~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)[,-1]
+
+quantiles_95 <- function(x) {
+  r <- quantile(x, probs=c(0.05, 0.25, 0.5, 0.75, 0.95))
+  names(r) <- c("ymin", "lower", "middle", "upper", "ymax")
+  r
+}
+
+mcmc.df.beta=mcmc.df %>% select(`beta[1]`:`beta[2]`) 
+names(mcmc.df.beta)=c("EE","ZM")
+mcmc.df.beta = mcmc.df.beta %>% gather(.)
+ggplot(data = mcmc.df.beta,mapping = aes(x = key,y = value,fill=as.factor(key)))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+ guides(fill=FALSE)+stat_summary(fun.data = quantiles_95, geom="boxplot")
+
+```
+
+a.2 There are labs Poulenc,ChungKor,EnvTox,Zeneca,KoreaPar,Hungtingd fail to detect such effects.(below the 0)
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+realname=X.fac.jags %>% colnames()
+jagsname=mcmc.df %>% names()
+
+temp.ee.lab=jagsname[str_detect(realname,"EE.*lab")] 
+real.tag=realname[str_detect(realname,"EE.*lab")]
+mcmc.df.beta=mcmc.df %>% select(temp.ee.lab[1:18]) 
+colnames(mcmc.df.beta)=real.tag
+mcmc.df.beta = mcmc.df.beta %>% gather(.)
+ggplot(data = mcmc.df.beta,mapping = aes(x = key,y = value,fill=as.factor(key)))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+ guides(fill=FALSE)+stat_summary(fun.data = quantiles_95, geom="boxplot")+geom_hline(yintercept = 0)
+
+temp.zm.lab=jagsname[str_detect(realname,"ZM.*lab")] 
+real.tag=realname[str_detect(realname,"ZM.*lab")]
+mcmc.df.beta=mcmc.df %>% select(temp.zm.lab[1:18]) 
+colnames(mcmc.df.beta)=real.tag
+mcmc.df.beta = mcmc.df.beta %>% gather(.)
+ggplot(data = mcmc.df.beta,mapping = aes(x = key,y = value,fill=as.factor(key)))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+ guides(fill=FALSE)+stat_summary(fun.data = quantiles_95, geom="boxplot")+geom_hline(yintercept = 0)
+
+
+```
+
+a.3 what the change point for the dose for `EE`. Under the model that `EE` and `ZM` are continuous, based on the linear regression assumption, we may think 1 is the change point. However, it is not rigorous. This changing point may vary across labs but it is hard to get the conclusion directly.
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+mcmc.df.beta=mcmc.df %>% pull(`beta[1]`) 
+a=0.01*mcmc.df.beta
+b=0.03*mcmc.df.beta
+c=mcmc.df.beta
+d=3*mcmc.df.beta
+e=10*mcmc.df.beta
+mcmc.df.beta=cbind(y=c(a,b,c,d,e),x=rep(c("0.01","0.03","1","3","10"),each=nrow(mcmc.df))) %>% as.tibble() %>%
+  mutate(y=as.numeric(y))
+
+ggplot(data = mcmc.df.beta,mapping = aes(x = as.factor(x),y=y,fill=factor(x)))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+ guides(fill=FALSE)+geom_boxplot()+
+  scale_x_discrete(limits=c("0.01","0.03","1","3","10"))
+
+
+```
+
+b.The dose response vary across labs. See from the credible interval "boxplot" for a.2. The position and length(with color-- 95% credible interval) for each lab is different. Lab Poulenc,Huntingd stands out as being different. However, there are still some overlap between the "outliers" and other labs. So we may say they are not too different from others.
+
+c.The protocol differ in the sensitivity to detecting the effects especially for `EE`. Protocol B is recommended for its lower variance compared to others. 
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+#consider sigma as measuring error
+
+temp.ee.lab=jagsname[str_detect(realname,"^protocol")] 
+real.tag=realname[str_detect(realname,"^protocol")]
+mcmc.df.beta=mcmc.df %>% select(temp.ee.lab[1:3],sigma) 
+colnames(mcmc.df.beta)=c(real.tag,"sigma")
+mcmc.df.beta = mcmc.df.beta %>% gather(.)
+ggplot(data = mcmc.df.beta,mapping = aes(x = key,y = value,fill=as.factor(key)))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+ guides(fill=FALSE)+stat_summary(fun.data = quantiles_95, geom="boxplot")+geom_hline(yintercept = 0)
+
+temp.ee.lab=jagsname[str_detect(realname,"EE.*protocol")] 
+real.tag=realname[str_detect(realname,"EE.*protocol")]
+mcmc.df.beta=mcmc.df %>% select(temp.ee.lab[1:3],sigma) 
+colnames(mcmc.df.beta)=c(real.tag,"sigma")
+mcmc.df.beta = mcmc.df.beta %>% gather(.)
+ggplot(data = mcmc.df.beta,mapping = aes(x = key,y = value,fill=as.factor(key)))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+ guides(fill=FALSE)+stat_summary(fun.data = quantiles_95, geom="boxplot")+geom_hline(yintercept = 0)
+
+temp.zm.lab=jagsname[str_detect(realname,"ZM.*protocol")] 
+real.tag=realname[str_detect(realname,"ZM.*protocol")]
+mcmc.df.beta=mcmc.df %>% select(temp.zm.lab[1:3],sigma) 
+colnames(mcmc.df.beta)=c(real.tag,"sigma")
+mcmc.df.beta = mcmc.df.beta %>% gather(.)
+ggplot(data = mcmc.df.beta,mapping = aes(x = key,y = value,fill=as.factor(key)))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+ guides(fill=FALSE)+stat_summary(fun.data = quantiles_95, geom="boxplot")+geom_hline(yintercept = 0)
+
+mcmc.df.lambda=mcmc.df %>% select(`lambda.l[1]`:`lambda.l[66]`) %>% gather(.)
+mcmc.df.phi.l=mcmc.df %>% select(`phi.l[1]`:`phi.l[66]`) %>% gather(.)
+beta.levels=paste0("beta[",1:66,"]","beta0")
+lambda.levels=paste0("lambda.l[",1:66,"]")
+phi.l.levels=paste0("phi.l[",1:66,"]")
 
 ```
 
@@ -488,5 +607,10 @@ kable(summary(lm.full.fac)$coefficients, format = "markdown")
 
 
 ```{r}
-kable((bas.coef), format = "markdown")
+bas.coef.need=bas.coef[,-5]
+kable((bas.coef.need), format = "markdown")
+```
+
+```{r}
+kable((ci.all), format = "markdown")
 ```

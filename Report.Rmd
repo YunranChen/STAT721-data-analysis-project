@@ -18,16 +18,17 @@ I constructed a linear regression model to fit the data from international mutil
 
 Uterotropic bioassay is one approach for screening chemicals for endocrine disrupting effect. An international mutilaboratory study was conducted with this method using known estrogen agonist(`EE`) and antagonist(`ZM`). The main goal is to assess the effects of `EE` and `ZM`, and whether the results were consistent across the laboratories. 
 
+
 The dataset including: response variable `uterus`(Uterus weight (mg)); key explanatory variables: `EE`(Dose of estrogen agonist,mg/kg/day),`ZM`(Dose of estrogen antagonist, mg/kg/day);other explanatory variables:  `Lab`(19 Laboratory at which assay was conducted), `Protocol`(4 levels factor, representing immature female rats dosed by oral gavage (3 days), immature female rats dosed by injection (3 days), adult ovariectomized female rats dosed by injection (3 days), adult ovariectomized female rats dosed by injection (7 days) seperately.); `Weight`(Body weight of rat (g)),`Group` (Lab replicate group (6 rats were used per group)).
 
 #### 3.Methods and Model
 
 ##### 3.1 EDA
 
-From the plot, we can answer all the questions! See page 3 for details.
+From the plot, we can answer all the questions! 
 
-From the plot, we get main information on the dataset.1)There are significant interaction among variables. Because each labs adopted differet treatment. So we have to include the iteraction into our regression model.
-2)Many discrete variables. We need to keep the model simple.
+From the plot, we get main information on the dataset.1)There are significant interaction among variables. Because each labs adopted differet treatment. So we have to include the iteraction into our regression model. 2)Many discrete variables. We need to keep the model simple.
+
 
 I chose boxplot to illustrate the relationship between continuous variable (`uterus`) and discrete variable(`EE` and `ZM`).Different colors represent different `labs`, and I use facet to represent different `protocol`. From the plot1, we can see that: 1)The trend for expection looks like quadratic form; But overall, the uterus decrease as the zm increase; The variance under different level of `ZM` is different. The variance of `ZM`=0 is much larger than the other two groups; 2)Overall, the boxplots look similar. However, the different labs act different especially when `ZM`=0. Some labs, like TNO in `protocol="B"`,`ZM=0.1` acts like an "outlier". There is interaction between `lab` and `ZM`. 3)Each labs adopted different treatment. So for some case, limited labs conducted the study. Similar for the case `EE`.
 
@@ -69,7 +70,7 @@ Note: here the $\beta{1i}$ means all the coefficients before `EE`. Similar F-tes
 
 a.2 Do some labs fail to detect such effects?
 
-Constructing t-test for linear combination of coefficients.Take lab Bayer for example. The sum of coefficients before `EE` (`EE` here including `EE0.01`, `EE0.03`,...) and `EE:labBayer` is t-distrbution. All also, we need to check the sign for significant coefficients.
+Constructing t-test for linear combination of coefficients.Take lab Bayer for example. The sum of coefficients before `EE` (`EE` here including `EE0.01`, `EE0.03`,...) and `EE:labBayer` is t-distrbution. All also, we need to check the sign for significant coefficients. Or, instead ,using t-test for "EE:lab_i" just pick out the labs with significant p value at "EE:lab_i" but opposite t value. ("Huntingd""Bayer""Zeneca")
 
 Hypothesis: $H_0: \Sigma_i (\beta_{1i}+\beta_{1i:labBayer})=0$(lab Bayer failed to detect) v.s. $H_1:\Sigma_i (\beta_{1i}+\beta_{1i:labBayer}) \neq 0$(lab Bayer detect successfully)
 
@@ -113,11 +114,13 @@ Notices: all the outliers appears in protocol C,D. This suggest us these procoto
 
 #### 4.Conclusion
 
-Overall, uterotrophic bioassay successful overal at identifying effects of EE and ZM.The change dose for EE is 3. Dose larger than this have significant effect while less than this is not significant.The protocols differ in their sensitivity to detecting the effect. Protocol A and B would be recommended.
+Overall, uterotrophic bioassay successful overal at identifying effects of EE and ZM.The change dose for EE is 3. Dose larger than this have significant effect while less than this is not significant.The protocols differ in their sensitivity to detecting the effect. Protocol B would be recommended.
 
 The result is not consistent among labs. First, there are some labs fail to detect such effects:Huntingd, Bayer, ChungKor, TNO, Zeneca. Second, the changing value for dose varies across labs. One of the reasons is for different labs, the dose changing points is different. For example, Sumitomo. EE0.3 may be the changing dose point. For Huntingd, EE0.1 may be the changing dose point. Third, dose reponse vary across labs. The labs Berlin and Sumitomo stands out as being different.(with pvalue<0.001 for EE:labs). The labs Bayer,Poulenc,Zeneca stands out as being different.(with pvalue<0.005 for ZM:labs)
 
+Note: 
 
+Futher improvement is to reparametrize the level for protocol to compare protocol A and protocol B.
 
 
 ```{r library, message=FALSE, warning=FALSE,echo=FALSE}
