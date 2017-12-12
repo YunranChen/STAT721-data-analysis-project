@@ -50,7 +50,7 @@ Notes:
 
 ### 3.3 Methods
 
-I use MLE/OLS to estimate the parameters. I use F-test, t-test for a single coefficient and t-test for linear combination of coefficients to answer the ques we care about. Actually, all the questions can be answer by the plot.(See the Page 3 for details.)
+I use MLE/OLS to estimate the parameters. I use F-test, t-test for a single coefficient and t-test for linear combination of coefficients to answer the ques we care about. Actually, all the questions can be answer by only two plots.(See the Page 3 for details.)
 
 a.1 Is the uterotrophic bioassay successful overal at identifying effects of EE and ZM
 
@@ -68,7 +68,7 @@ Note: here the $\beta{1i}$ means all the coefficients before `EE`. Similar F-tes
 
 a.2 Do some labs fail to detect such effects?
 
-Constructing t-test for linear combination of coefficients.Take lab Bayer for example. The sum of coefficients before `EE` (`EE` here including `EE0.01`, `EE0.03`,...) and `EE:labBayer` is t-distrbution. All also, we need to check the sign.
+Constructing t-test for linear combination of coefficients.Take lab Bayer for example. The sum of coefficients before `EE` (`EE` here including `EE0.01`, `EE0.03`,...) and `EE:labBayer` is t-distrbution. All also, we need to check the sign for significant coefficients.
 
 Hypothesis: $H_0: \Sigma_i (\beta_{1i}+\beta_{1i:labBayer})=0$(lab Bayer failed to detect) v.s. $H_1:\Sigma_i (\beta_{1i}+\beta_{1i:labBayer}) \neq 0$(lab Bayer detect successfully)
 
@@ -106,7 +106,10 @@ Notes:
 
 ### 3.4 Outliers and Influential points
 
-According the residuals, there are three possible "outliers"(). However, I text these outliers in to the boxplots. I find that some are outliers in some aspect while not in other aspect. And all these outlier comes from 
+According the residuals, there are three possible "outliers"(1426,926,1586). However, I text these outliers in the boxplots. I find that points 1586,926 are outliers with $ZM=0,EE=0.1$. In the boxplot, they are much higher compared to all other points. So I consider it as an outlier. However, the points 1426 is with $ZM=1,EE=3$. It maybe the result of the interaction of `EE` and `ZM`.And not much labs conduct studies under this treatment. Only a few studies including both `EE` and `ZM`. So I keep the points 1426.
+
+Notices: all the outliers appears in protocol C,D. This suggest us these procotols are not recommended.
+
 ## 4.Results
 
 ```{r library, message=FALSE, warning=FALSE,echo=FALSE}
@@ -150,11 +153,12 @@ table(bioassay$EE,bioassay.fac$lab)
 ##different labs have diff mean on ZM. interaction on labs and protocol.
 ##when consider ZM as numeric, the diff is not sig in pic. but in factor - diff.
 ###4var:ZM
-outliers=c(1426,926,1586,1425,1946,2666)
+
+outliers=c(1426,926,1586)#,1425,1946,2666)
 ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = ZM,color=lab))+
   geom_boxplot()+theme_bw()+facet_wrap(~ protocol)+
   geom_text(data=bioassay.fac[outliers,],
-            aes(label=outliers,color=lab,hjust=1.1))
+            aes(label=outliers,color=lab))
 ##caculate the mean for different group 
 #bioassay.fac %>% group_by(ZM) %>% summarize(mean=mean(uterus,na.rm=T))
 
@@ -177,16 +181,102 @@ ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = weight))+
 
 ```{r lm.full.fac}
 lm.full.fac=lm(data = bioassay.fac[-c(1586,926),],formula = uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab) 
-anova(lm.full.fac)
-plot(lm.full.fac)
+
+plot(lm.full.fac) ##use the plot to check model assumption. (detect outliers, normality, influential points.)
+
+#bioassay.fac %>% select(EE,ZM) %>% table() -- there is imbalanced distribution 
+
 summary(lm.full.fac)
 #Adjusted R-squared:  0.9538 
 
+##if consider EE,ZM as numeric
 #lm.full.q=lm(data = bioassay,formula = #uterus~poly(EE,2)+poly(ZM,2)+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)
 #anova(lm.full.q)
-#summary(lm.full.q) #0.8286#p=69 
+#summary(lm.full.q) #0.8286 #p=69 
 ```
 
+```{r functions}
+eff.tbl=function(lm.obj){
+  
+  ind.mat=matrix(0,nrow=nrow(summary(lm.obj)$coefficients),ncol=7)
+  colnames(ind.mat)=c("EE","ZM","lab","protocol","EEdose","ZMdose","interaction")
+  ind.mat=cbind(coef=summary(lm.obj)$coefficients%>%rownames(.),ind.mat)
+  ind.mat[str_detect(ind.mat[,1],"EE"),"EE"]=1
+  ind.mat[str_detect(ind.mat[,1],"ZM"),"ZM"]=1
+  ind.mat[str_detect(ind.mat[,1],"lab"),"interaction"]=1
+  ind.mat[str_detect(ind.mat[,1],"protocol"),"interaction"]=1
+  
+  for (dose in c(bioassay.fac$EE %>% levels())){
+     ind.mat[str_detect(ind.mat[,1],paste0("EE",dose)),"EEdose"]=dose
+  }
+  for (dose in c(bioassay.fac$ZM %>% levels())){
+     ind.mat[str_detect(ind.mat[,1],paste0("ZM",dose)),"ZMdose"]=dose
+  }
+  for (lab in c(bioassay.fac$lab %>% levels())){
+     ind.mat[str_detect(ind.mat[,1],paste0("lab",lab)),"lab"]=lab
+  }     
+  for (protocol in c(bioassay.fac$protocol %>% levels())){
+     ind.mat[str_detect(ind.mat[,1],paste0("protocol",protocol)),"protocol"]=protocol
+  }  
+  ind.tbl=ind.mat%>% as.tibble()
+  return(ind.tbl)
+}
+
+t.test=function(lm.obj,str.ee,str.lab,str.ori){
+ind.tbl=eff.tbl(lm.obj)
+cov.coef=vcov(lm.obj)
+p=nrow(ind.tbl)
+i.levels=bioassay.fac %>% pull(str.ori) %>% levels() #original colnames in bioassay.fac
+i.n=i.levels %>% length(.)
+lambda=matrix(nrow=i.n,ncol=nrow(ind.tbl))
+lab.ee=t.value=p.value=numeric(i.n)
+
+for (i in 1:i.n){
+  lambda[i,]=((ind.tbl[str.lab]==i.levels[i])&(ind.tbl[str.ee]=="1"))|((ind.tbl[str.ee]=="1")&(ind.tbl["interaction"]=="0"))
+  lab.ee[i]=summary(lm.obj)$coefficients[lambda[i,],"Estimate"] %>% sum()
+  denominatior=(cov.coef[lambda[i,],lambda[i,]]) %>% sum() %>% sqrt()
+  nominatior=lab.ee[i]
+  t.value[i]=abs(nominatior/denominatior)
+  p.value[i]=pt(q = t.value[i],df = summary(lm.obj)$df[2],lower.tail = FALSE)
+}
+
+res=tibble(i.levels,p.value,estimator=lab.ee)
+return(res)
+}
+```
+
+
+
+```{r result}
+#0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+##a.1
+anova(lm.full.fac)
+
+coefs=rownames(summary(lm.full.fac)$coefficients)
+
+res=summary(lm.full.fac)$coefficients %>%
+  cbind(coef=coefs,.) %>% 
+  as.tibble() #get the coefficients matrix
+
+colnames(res)=c("coef","estimate","std_error","t_value","p_value")
+
+res %>% filter(as.numeric(p_value)<0.05) %>% slice(1:10)
+##uterotrophic bioassay successful overal at identifying effects of EE and ZM. F-test for EE,ZM are significant. For the significant coefficients, all EE are positive, ZM are negative. 
+
+##a.2 do some labs fail t detect such effects
+##There are some labs fail to detect such effects, as follows:"Huntingd""Bayer""ChungKor""TNO""Zeneca"  
+a.2.ee=t.test(lm.full.fac,"EE","lab","lab") 
+a.2.ee
+a.2.ee %>% filter(((p.value<0.05)&(estimator<0))|(p.value>0.05))# %>% pull(i.levels)
+
+a.2.zm=t.test(lm.full.fac,"ZM","lab","lab")
+a.2.zm
+a.2.zm %>% filter(((p.value<0.05)&(estimator>0))|(p.value>0.05))#%>% pull(i.levels)
+
+##a.3 the change dose for ee? vary across labs?
+##From the output 
+```
 
 ## 5.Conclusions
 
@@ -204,80 +294,24 @@ summary(lm.full.fac)
 
 ```
 
-```{r functions}
-#eff.tbl=function(lm.obj){
-#  
-#  ind.mat=matrix(0,nrow=nrow(summary(lm.obj)$coefficients),ncol=6)
-#  colnames(ind.mat)=c("EE","ZM","lab","protocol","EEdose","ZMdose")
-#  ind.mat=cbind(coef=summary(lm.obj)$coefficients%>%rownames(.),ind.mat)
-#  ind.mat[str_detect(ind.mat[,1],"EE"),"EE"]=1
-#  ind.mat[str_detect(ind.mat[,1],"ZM"),"ZM"]=1
-#  
-#  for (dose in c(bioassay.fac$EE %>% levels())){
-#     ind.mat[str_detect(ind.mat[,1],paste0("EE",dose)),"EEdose"]=dose
-#  }
-#  for (dose in c(bioassay.fac$ZM %>% levels())){
-#     ind.mat[str_detect(ind.mat[,1],paste0("ZM",dose)),"ZMdose"]=dose
-#  }
-#  for (lab in c(bioassay.fac$lab %>% levels())){
-#     ind.mat[str_detect(ind.mat[,1],paste0("lab",lab)),"lab"]=lab
-#  }     
-#  for (protocol in c(bioassay.fac$protocol %>% levels())){
-#     ind.mat[str_detect(ind.mat[,1],paste0("protocol",protocol)),"protocol"]=protocol
-#  }  
-#  ind.tbl=ind.mat%>% as.tibble()
-#  return(ind.tbl)
-#}
-#
-```
-
 
 
 ```{r lm.full.fac.1}
 
 
-###consider EE ZM as factor
-#lm.full.fac.1=lm(data = bioassay.fac,formula = #uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab+EE:protocol:lab+ZM:protocol:lab+lab:protocol) ##weight:lab,
-#plot(lm.full.fac.1)
-###---Q1:
-##(1)significant in EE & ZM; 
-#anova(lm.full.fac.1)
-##(1)EE:+;ZM:-
-#ind.tbl=eff.tbl(lm.full.fac.1)
-#ind.tbl[1,]="1"
-#ee=summary(lm.full.fac.1)$coefficients[ind.tbl$EE=="1","Estimate"] %>% sum()
-#ee
-#zm=summary(lm.full.fac.1)$coefficients[ind.tbl$ZM=="1","Estimate"] %>% sum()
-#zm
-##(2)some labs:
-###basis:Basf
-###EE:+
-###ZM:-
-#labeff=function(str.ee,str.lab,str.ori){
-#ee=summary(lm.full.fac.1)$coefficients[ind.tbl[str.ee]=="1","Estimate"] %>% sum()
-#lab.null=summary(lm.full.fac.1)$coefficients[(ind.tbl[str.lab]=="0")&(ind.tbl[str.ee]=="1"),"Estimate"] %>% sum()
-#i.levels=bioassay.fac %>% pull(str.ori) %>% levels()
-#i.n=i.levels %>% length(.)
-#lab.ee=length(i.n)
-#for (i in 1:i.n){
-#  lab.ee[i]=summary(lm.full.fac.1)$coefficients[(ind.tbl[str.lab]!=i.levels[i])&(ind.tbl[str.ee]=="1"),"Estimate"] %>% #sum()
-#}
-#res=ee-lab.ee+lab.null
-#
-#return(tibble(i.levels,res))
-#}
-#
-#labeff("EE","lab","lab")
-#labeff("ZM","lab","lab")
-##(3)dose
-#labeff("EE","EEdose","EE") #0.1-|-0.3
-#labeff("ZM","ZMdose","ZM") #0-|-0.1
-##b.(1)dose+lab
-#
-##b.(2)
-#
-##c.(1)protocol
-#labeff("EE","protocol","protocol")
-#labeff("ZM","protocol","protocol")
+
+
+labeff("EE","lab","lab")
+labeff("ZM","lab","lab")
+#(3)dose
+labeff("EE","EEdose","EE") #0.1-|-0.3
+labeff("ZM","ZMdose","ZM") #0-|-0.1
+#b.(1)dose+lab
+
+#b.(2)
+
+#c.(1)protocol
+labeff("EE","protocol","protocol")
+labeff("ZM","protocol","protocol")
 ```
 
