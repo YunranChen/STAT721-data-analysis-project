@@ -264,30 +264,6 @@ res %>% filter(str_detect(res$coef,"ZM.*protocol"))
 
 With the same model, using Bayesian Average Model to estimate the parameter with hyper-g-n prior(mixture prior). To answer the questions, I mainly concentrate on inclusion probability, posterior model probability and the shape of posterior distribution for $\beta_i$ (or confidence interval). 
 
-```{r bays.fac.1.gprior,echo=FALSE,eval=FALSE}
-#EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab
-n=nrow(bioassay.fac)
-X.fac.1=model.matrix(data=bioassay.fac,object =~ EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)
-p=ncol(X.fac.1)-1
-bas.fac.1=bas.lm(formula =uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab,
-                 data=bioassay.fac,
-                 prior="g-prior",
-                 alpha=n,
-                 #n.models=20000,
-                 method = "MCMC",
-                 thin=10,
-                 #initprobs = "eplogp",
-                 MCMC.iterations = 500000)
-bas.fac.1
-image(bas.fac.1)
-plot(bas.fac.1)
-#summary(bas.fac.1)
-coef(bas.fac.1) %>% plot(.,ask=F)
-##diagonose
-diagnostics(bas.fac.1,"pip")
-#cv.summary.bas()
-```
-
 ```{r bays.fac.1.hypergn}
 n=nrow(bioassay.fac)
 
@@ -339,7 +315,7 @@ coef(bas.fac.2) %>% plot(.,ask=F,subset=ind.zm)
 
 a.2 Concerntrate on `EE:lab_i`, `ZM:lab_i`. Pick out the labs with high inclusive probability but opposite location compared to others. ("Huntingd""Zeneca""TNO""KoreaPar""ChungKor""Poulenc""EnvTox") Simply, the rule is for   `EE`, if `EE:lab_i` is at the left side of the verticle black line and the verticle black line is short, we may consider the lab fail to detect. Similar for `ZM`.
 
-```{r,eval=FALSE,echo=FALSE}
+```{r part2.a.1 ,eval=FALSE,echo=FALSE}
 coef(bas.fac.2) %>% plot(.,ask=F)
 
 #bas.a_2=function(lm.obj,int.tbl,str.ee,str.lab,str.ori){
@@ -377,7 +353,7 @@ b. The dose response vary across labs, because there exist `EE:lab_i`,`ZM:lab_i`
 
 c.Protocols differ in the sensitivity to detect effects. Protocol B would be recommended because the length of CI for `protocolB:EE` and `protocolB:ZM` are small compared to others.
 
-```{r}
+```{r part2.c}
 
 coefs=rownames(confint(coef(bas.fac.2)))
 ci.length=apply(confint(coef(bas.fac.2)),1,function(x) as.numeric(x[2])-as.numeric(x[1]))
@@ -402,7 +378,7 @@ Because I set iteration=30000, and include many predictors. So the jags would be
 
 Prepare the data
 
-```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+```{r prep jags, message=FALSE, warning=FALSE, paged.print=FALSE}
 
 # Create a data list with inputs for JAGS
 
@@ -497,7 +473,7 @@ mcmc.df=stack.mcmc %>% as.tibble()
 
 a.1 The method is successful overall at identifying effects because the credible interval for `EE` is above 0, the credible interval for `ZM` is below 0.
 
-```{r}
+```{r part3.a.1}
 ##code from https://stackoverflow.com/questions/21310609/ggplot2-box-whisker-plot-show-95-confidence-intervals-remove-outliers 
 
 X.fac.jags=model.matrix(data=bioassay,object =~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)[,-1]
@@ -518,7 +494,7 @@ ggplot(data = mcmc.df.beta,mapping = aes(x = key,y = value,fill=as.factor(key)))
 
 a.2 There are labs Poulenc,ChungKor,EnvTox,Zeneca,KoreaPar,Hungtingd fail to detect such effects.(below the 0)
 
-```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+```{r part3.a.2, echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
 realname=X.fac.jags %>% colnames()
 jagsname=mcmc.df %>% names()
 
@@ -543,7 +519,7 @@ ggplot(data = mcmc.df.beta,mapping = aes(x = key,y = value,fill=as.factor(key)))
 
 a.3 what the change point for the dose for `EE`. Under the model that `EE` and `ZM` are continuous, based on the linear regression assumption, we may think 1 is the change point. However, it is not rigorous. This changing point may vary across labs but it is hard to get the conclusion directly.
 
-```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+```{r part3.a.3, message=FALSE, warning=FALSE, paged.print=FALSE}
 mcmc.df.beta=mcmc.df %>% pull(`beta[1]`) 
 a=0.01*mcmc.df.beta
 b=0.03*mcmc.df.beta
@@ -564,7 +540,7 @@ b.The dose response vary across labs. See from the credible interval "boxplot" f
 
 c.The protocol differ in the sensitivity to detecting the effects especially for `EE`. Protocol B is recommended for its lower variance compared to others. 
 
-```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+```{r part3.c, message=FALSE, warning=FALSE, paged.print=FALSE}
 #consider sigma as measuring error
 
 temp.ee.lab=jagsname[str_detect(realname,"^protocol")] 
@@ -601,16 +577,16 @@ phi.l.levels=paste0("phi.l[",1:66,"]")
 
 ### Table for the whole model
 
-```{r}
+```{r model1}
 kable(summary(lm.full.fac)$coefficients, format = "markdown")
 ```
 
 
-```{r}
+```{r model2}
 bas.coef.need=bas.coef[,-5]
 kable((bas.coef.need), format = "markdown")
 ```
 
-```{r}
+```{r model3}
 kable((ci.all), format = "markdown")
 ```
