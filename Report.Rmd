@@ -1,7 +1,7 @@
 ---
-title: "Report"
+#title: "Report"
 author: "Yunran Chen"
-date: "2017/12/10"
+#date: "2017/12/10"
 output: pdf_document
 ---
 
@@ -10,35 +10,36 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-## 1.Summary
+#### 1.Summary
 
-## 2.Introduction
+I constructed a linear regression model to fit the data from international mutilaboratory studies. The model includes all variables except `group` and interaction between estrogen chemicals and different labs along with protocols. Apart from `weight` and `uterus`, all other variables are considered as factor. I use MLE/OLS to estimate the parameters and use t-test and F-test to assess the effects of `EE` and `ZM`, and whether the results were consistent across the laboratories. Overall, the effects are significant. And the changing dose point for `EE` is 3. Protocol A,B would be recommended. However, these results are not consistant among labs. These results can also be presented by 3 simple graph.
 
-Uterotropic bioassay is one approach for screening chemicals for endocrine disrupting effect. An international mutilaboratory study was conducted with this method using known estrogen agonist(`EE`) and antagonist(`ZM`). The main goal is to assess whether the results were consistent across the laboratories. For one aspect, we care about:1)whether the method is successful for identifying endocrine disrupting effect of `EE` and `ZM`; 2)how dose response? is there a "change" dose level of `EE` for endocrine disrupting effect; 3)do the protocols differ in their sensitivity to detect estrogenic and anti-estrogenic effects; which one is recommended? For the other aspect, we care about:1) whether the results for abovementioned problems vary across labs;2)which labs stand out for being different?
+#### 2.Introduction
+
+Uterotropic bioassay is one approach for screening chemicals for endocrine disrupting effect. An international mutilaboratory study was conducted with this method using known estrogen agonist(`EE`) and antagonist(`ZM`). The main goal is to assess the effects of `EE` and `ZM`, and whether the results were consistent across the laboratories. 
 
 The dataset including: response variable `uterus`(Uterus weight (mg)); key explanatory variables: `EE`(Dose of estrogen agonist,mg/kg/day),`ZM`(Dose of estrogen antagonist, mg/kg/day);other explanatory variables:  `Lab`(19 Laboratory at which assay was conducted), `Protocol`(4 levels factor, representing immature female rats dosed by oral gavage (3 days), immature female rats dosed by injection (3 days), adult ovariectomized female rats dosed by injection (3 days), adult ovariectomized female rats dosed by injection (7 days) seperately.); `Weight`(Body weight of rat (g)),`Group` (Lab replicate group (6 rats were used per group)).
 
-The characteristics of the dataset.
+#### 3.Methods and Model
 
-## 3.Methods and Model
+##### 3.1 EDA
 
-### 3.1 EDA
+From the plot, we can answer all the questions! See page 3 for details.
 
-From the plot, we get three main information on the dataset.1)linear regession assumption.(quadratic form)
-2)There are significant interaction among variables. Because each labs adopted differet treatment. So we have to include the iteraction into our regression model.
-3)Many discrete variables. We need to keep the model simple.
+From the plot, we get main information on the dataset.1)There are significant interaction among variables. Because each labs adopted differet treatment. So we have to include the iteraction into our regression model.
+2)Many discrete variables. We need to keep the model simple.
 
 I chose boxplot to illustrate the relationship between continuous variable (`uterus`) and discrete variable(`EE` and `ZM`).Different colors represent different `labs`, and I use facet to represent different `protocol`. From the plot1, we can see that: 1)The trend for expection looks like quadratic form; But overall, the uterus decrease as the zm increase; The variance under different level of `ZM` is different. The variance of `ZM`=0 is much larger than the other two groups; 2)Overall, the boxplots look similar. However, the different labs act different especially when `ZM`=0. Some labs, like TNO in `protocol="B"`,`ZM=0.1` acts like an "outlier". There is interaction between `lab` and `ZM`. 3)Each labs adopted different treatment. So for some case, limited labs conducted the study. Similar for the case `EE`.
 
 I chose scatterplots with regression line to illustrate the relationship between two continuous variable (`uterus` and `weight`). Because the significant differece on `weight` between immature rats and adult rats, I use facet to represent different `protocol`. Notice the range for y-axis is different. We can see that: 1)For immature rats, `weight` seems do not effect the `uterus`. While for adult rats, the `uterus` decrease as the `weight` increase. There is significant interaction.
 
-### 3.2 Model
+##### 3.2 Model
 
 I build a linear regression model with all variables except `group`. Apart from `weight` and `uterus`, I consider all other variables as factor. Also, I include the interaction between estrogen chemicals and different labs along with protocols. Notice for the factors need to use a set of dummy variables to represent, so there are 218 predictors including the intercept.
 
 $Y=intercept+\beta_1EE+\beta_2ZM+\beta_3lab+\beta_4protocol+\beta_5weight+\beta_6EE:protocol+\beta_7ZM:protocol+\beta_8EE:lab+\beta_9ZM:lab+\epsilon$ 
 
-where $\epsilon \sim N(0,\sigma^2)$
+where $\epsilon \sim N(0,\sigma^2)$,Adjusted R-squared:  0.9538.
 
 Notes:
 
@@ -48,7 +49,7 @@ Notes:
 
 3. Notice that each labs adopted different schemes for the study.(See the jitter plot) So interaction would be significant among all the variables (except for `group`). However, there are 19 labs and 8 different levels for `EE`. We need to be careful when include the interaction. I adopted the rule "keep the simplest model" and make sure that each variable and interaction I include in is super significant.(with p-value for F-test less than 2.2e-16).
 
-### 3.3 Methods
+##### 3.3 Methods
 
 I use MLE/OLS to estimate the parameters. I use F-test, t-test for a single coefficient and t-test for linear combination of coefficients to answer the ques we care about. Actually, all the questions can be answer by only two plots.(See the Page 3 for details.)
 
@@ -90,13 +91,13 @@ $t=\frac{\hat{\beta}-b_0}{\hat{\sigma}\sqrt{(X^TX)^{-1}}} \sim t(n-p,0,1)$
 
 b Does the dose response vary across labs? If so, which one stands out as being different?
 
-Using t-test for single coefficient.For each $lab_i$ we concerntrate on coefficients of `EE:lab_i`, `ZM:lab_i`. For certain $dose_j$, if some of them are significant, some are not. We would say the dose response vary across labs. If some of the pvalue are especially small, those labs may stand out as being different.
+Using F-test to see whether the dose response vary across labs. If F-test for `EE:labs`,`ZM:labs` are significant, then vary across labs. Using t-test for single coefficient.For each $lab_i$ we concerntrate on coefficients of `EE:lab_i`, `ZM:lab_i`. For certain $dose_j$, if some of the pvalue are especially small, those labs may stand out as being different.
 
 c Do the protocols differ in their sensitivity to detect the effects? Is there one can be recommend?
 
 Using F-test for the interaction `EE:protocol`, `ZM:Protocol`.If they are significant, we may say the protocols differ. 
 
-A good protocol should have following properties: 1)Robust. The variance of coefficients of `EE:protocol_i` and `ZM:protocol_i` should be small. 2)Significant.The absolute value of coefficients before `EE:protocol_i` and `ZM:protocol_i` should be large, so that we can easy to detect. 3)Consistent. Under the protocol, different labs should get similar result.  The 1)3) can be settled down by F-test. 2) can be settled down by comparing the estimator.(the location of confidence interval)
+A good protocol should have following properties: 1)Robust. The variance of coefficients of `EE:protocol_i` and `ZM:protocol_i` should be small. 2)Consistent. Under the protocol, different labs should get similar result.For 1) compare variance for coefficients `protocol` and `EE:protocol`. For 2), we need to include `labs:protocol` inside the model. Or we can use boxplot to get the result. 
 
 Notes:
 
@@ -104,214 +105,20 @@ Notes:
 
 2. For overall test for discrete variable (factors), I adopted F-test. And for specific problem, I use t-test.
 
-### 3.4 Outliers and Influential points
+##### 3.4 Outliers and Influential points
 
 According the residuals, there are three possible "outliers"(1426,926,1586). However, I text these outliers in the boxplots. I find that points 1586,926 are outliers with $ZM=0,EE=0.1$. In the boxplot, they are much higher compared to all other points. So I consider it as an outlier. However, the points 1426 is with $ZM=1,EE=3$. It maybe the result of the interaction of `EE` and `ZM`.And not much labs conduct studies under this treatment. Only a few studies including both `EE` and `ZM`. So I keep the points 1426.
 
 Notices: all the outliers appears in protocol C,D. This suggest us these procotols are not recommended.
 
-## 4.Results
+#### 4.Conclusion
 
-```{r library, message=FALSE, warning=FALSE,echo=FALSE}
-library(tibble)
-library(dplyr)
-library(purrr)
-library(tidyr)
-library(ggplot2)
-library(stringr)
+Overall, uterotrophic bioassay successful overal at identifying effects of EE and ZM.The change dose for EE is 3. Dose larger than this have significant effect while less than this is not significant.The protocols differ in their sensitivity to detecting the effect. Protocol A and B would be recommended.
 
-bioassay.read = read.table("http://stat.duke.edu/sites/stat.duke.edu/files/bioassay.txt",
-                       header=T,stringsAsFactors = FALSE) %>% as.tibble()
-
-bioassay=bind_cols(map_df(bioassay.read %>% select(uterus,weight,EE,ZM),~.x %>% as.numeric(.)),
-                   map_df(bioassay.read %>% select(protocol,lab,group),~.x %>% as.factor(.))
-                   ) %>% as.tibble()
-bioassay.fac=bioassay %>% mutate(EE=as.factor(EE),ZM=as.factor(ZM))
-```
-
-```{r summary}
-##1)We can consider `weight` and `uterus` as continuous variable. All other variables only have seperate values.
-summary(bioassay)
-bioassay %>% select(EE) %>% table()
-bioassay %>% select(ZM) %>% table()
-##2)There are significant interaction among variables. Because each labs adopted differet treatment.
-table(bioassay$EE,bioassay.fac$lab)
-##visualization for points
-#ggplot(data=bioassay,mapping = aes(y = lab,x = protocol,color=as.factor(ZM)))+
-#  geom_jitter(alpha=0.5)
-#ggplot(data=bioassay.fac,mapping = aes(y = lab,x = ZM,color=protocol))+
-#  geom_jitter(alpha=0.5)
-#ggplot(data=bioassay,mapping = aes(y = lab,x = protocol,color=as.factor(EE)))+
-#  geom_jitter(alpha=0.5)
-#ggplot(data=bioassay,mapping = aes(y = lab,x = protocol,color=as.factor(EE)))+
-#     geom_count(alpha=0.5,position = "jitter")
-```
-
-
-```{r EDA}
-##---------------------boxplot
-##different labs have diff mean on ZM. interaction on labs and protocol.
-##when consider ZM as numeric, the diff is not sig in pic. but in factor - diff.
-###4var:ZM
-
-outliers=c(1426,926,1586)#,1425,1946,2666)
-ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = ZM,color=lab))+
-  geom_boxplot()+theme_bw()+facet_wrap(~ protocol)+
-  geom_text(data=bioassay.fac[outliers,],
-            aes(label=outliers,color=lab))
-##caculate the mean for different group 
-#bioassay.fac %>% group_by(ZM) %>% summarize(mean=mean(uterus,na.rm=T))
-
-##4var:EE
-ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = EE,color=lab))+
-  geom_boxplot()+theme_bw()+facet_wrap(~ protocol)+
-  geom_text(data=bioassay.fac[outliers,],
-            aes(label=outliers,color=lab))
-##caculate the mean for different group.
-#bioassay.fac %>% group_by(EE) %>% summarize(mean=mean(uterus,na.rm=T))
-
-##weights
-ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = weight))+
-  geom_point()+geom_smooth(method = "lm")+theme_bw()+facet_wrap(~ protocol,scales = "free")+
-  geom_text(data=bioassay.fac[outliers,],
-            aes(label=outliers,color=lab))
-
-```
-
-
-```{r lm.full.fac}
-lm.full.fac=lm(data = bioassay.fac[-c(1586,926),],formula = uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab) 
-
-plot(lm.full.fac) ##use the plot to check model assumption. (detect outliers, normality, influential points.)
-
-#bioassay.fac %>% select(EE,ZM) %>% table() -- there is imbalanced distribution 
-
-summary(lm.full.fac)
-#Adjusted R-squared:  0.9538 
-
-##if consider EE,ZM as numeric
-#lm.full.q=lm(data = bioassay,formula = #uterus~poly(EE,2)+poly(ZM,2)+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)
-#anova(lm.full.q)
-#summary(lm.full.q) #0.8286 #p=69 
-```
-
-```{r functions}
-eff.tbl=function(lm.obj){
-  
-  ind.mat=matrix(0,nrow=nrow(summary(lm.obj)$coefficients),ncol=7)
-  colnames(ind.mat)=c("EE","ZM","lab","protocol","EEdose","ZMdose","interaction")
-  ind.mat=cbind(coef=summary(lm.obj)$coefficients%>%rownames(.),ind.mat)
-  ind.mat[str_detect(ind.mat[,1],"EE"),"EE"]=1
-  ind.mat[str_detect(ind.mat[,1],"ZM"),"ZM"]=1
-  ind.mat[str_detect(ind.mat[,1],"lab"),"interaction"]=1
-  ind.mat[str_detect(ind.mat[,1],"protocol"),"interaction"]=1
-  
-  for (dose in c(bioassay.fac$EE %>% levels())){
-     ind.mat[str_detect(ind.mat[,1],paste0("EE",dose)),"EEdose"]=dose
-  }
-  for (dose in c(bioassay.fac$ZM %>% levels())){
-     ind.mat[str_detect(ind.mat[,1],paste0("ZM",dose)),"ZMdose"]=dose
-  }
-  for (lab in c(bioassay.fac$lab %>% levels())){
-     ind.mat[str_detect(ind.mat[,1],paste0("lab",lab)),"lab"]=lab
-  }     
-  for (protocol in c(bioassay.fac$protocol %>% levels())){
-     ind.mat[str_detect(ind.mat[,1],paste0("protocol",protocol)),"protocol"]=protocol
-  }  
-  ind.tbl=ind.mat%>% as.tibble()
-  return(ind.tbl)
-}
-
-t.test=function(lm.obj,str.ee,str.lab,str.ori){
-ind.tbl=eff.tbl(lm.obj)
-cov.coef=vcov(lm.obj)
-p=nrow(ind.tbl)
-i.levels=bioassay.fac %>% pull(str.ori) %>% levels() #original colnames in bioassay.fac
-i.n=i.levels %>% length(.)
-lambda=matrix(nrow=i.n,ncol=nrow(ind.tbl))
-lab.ee=t.value=p.value=numeric(i.n)
-
-for (i in 1:i.n){
-  lambda[i,]=((ind.tbl[str.lab]==i.levels[i])&(ind.tbl[str.ee]=="1"))|((ind.tbl[str.ee]=="1")&(ind.tbl["interaction"]=="0"))
-  lab.ee[i]=summary(lm.obj)$coefficients[lambda[i,],"Estimate"] %>% sum()
-  denominatior=(cov.coef[lambda[i,],lambda[i,]]) %>% sum() %>% sqrt()
-  nominatior=lab.ee[i]
-  t.value[i]=abs(nominatior/denominatior)
-  p.value[i]=pt(q = t.value[i],df = summary(lm.obj)$df[2],lower.tail = FALSE)
-}
-
-res=tibble(i.levels,p.value,estimator=lab.ee)
-return(res)
-}
-```
-
-
-
-```{r result}
-#0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
-
-##a.1
-anova(lm.full.fac)
-
-coefs=rownames(summary(lm.full.fac)$coefficients)
-
-res=summary(lm.full.fac)$coefficients %>%
-  cbind(coef=coefs,.) %>% 
-  as.tibble() #get the coefficients matrix
-
-colnames(res)=c("coef","estimate","std_error","t_value","p_value")
-
-res %>% filter(as.numeric(p_value)<0.05) %>% slice(1:10)
-##uterotrophic bioassay successful overal at identifying effects of EE and ZM. F-test for EE,ZM are significant. For the significant coefficients, all EE are positive, ZM are negative. 
-
-##a.2 do some labs fail t detect such effects
-##There are some labs fail to detect such effects, as follows:"Huntingd""Bayer""ChungKor""TNO""Zeneca"  
-a.2.ee=t.test(lm.full.fac,"EE","lab","lab") 
-a.2.ee
-a.2.ee %>% filter(((p.value<0.05)&(estimator<0))|(p.value>0.05))# %>% pull(i.levels)
-
-a.2.zm=t.test(lm.full.fac,"ZM","lab","lab")
-a.2.zm
-a.2.zm %>% filter(((p.value<0.05)&(estimator>0))|(p.value>0.05))#%>% pull(i.levels)
-
-##a.3 the change dose for ee? vary across labs?
-##From the output 
-```
-
-## 5.Conclusions
-
-## Part I: OLS/MLE
-
-
-```{r lm.full.2}
-
-###------Q1
-#ind=str_detect(summary(lm.full.simple)$coefficients %>% rownames(),"EE")
-#eff.coeff.2=summary(lm.full.simple)$coefficients %>%
-#  as.data.frame() %>% 
-#  mutate(coeff=rownames(.)) %>% 
-#  filter(ind)
-
-```
-
-
-
-```{r lm.full.fac.1}
+The result is not consistent among labs. First, there are some labs fail to detect such effects:Huntingd, Bayer, ChungKor, TNO, Zeneca. Second, the changing value for dose varies across labs. One of the reasons is for different labs, the dose changing points is different. For example, Sumitomo. EE0.3 may be the changing dose point. For Huntingd, EE0.1 may be the changing dose point. Third, dose reponse vary across labs. The labs Berlin and Sumitomo stands out as being different.(with pvalue<0.001 for EE:labs). The labs Bayer,Poulenc,Zeneca stands out as being different.(with pvalue<0.005 for ZM:labs)
 
 
 
 
-labeff("EE","lab","lab")
-labeff("ZM","lab","lab")
-#(3)dose
-labeff("EE","EEdose","EE") #0.1-|-0.3
-labeff("ZM","ZMdose","ZM") #0-|-0.1
-#b.(1)dose+lab
 
-#b.(2)
-
-#c.(1)protocol
-labeff("EE","protocol","protocol")
-labeff("ZM","protocol","protocol")
-```
 

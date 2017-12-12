@@ -1,0 +1,204 @@
+---
+#title: "Graphs"
+#author: "Yunran Chen"
+#date: "2017/12/11"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+```{r library, message=FALSE, warning=FALSE,echo=FALSE}
+library(tibble)
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(stringr)
+
+bioassay.read = read.table("http://stat.duke.edu/sites/stat.duke.edu/files/bioassay.txt",
+                       header=T,stringsAsFactors = FALSE) %>% as.tibble()
+
+bioassay=bind_cols(map_df(bioassay.read %>% select(uterus,weight,EE,ZM),~.x %>% as.numeric(.)),
+                   map_df(bioassay.read %>% select(protocol,lab,group),~.x %>% as.factor(.))
+                   ) %>% as.tibble()
+bioassay.fac=bioassay %>% mutate(EE=as.factor(EE),ZM=as.factor(ZM))
+```
+
+```{r summary, eval=FALSE, echo=FALSE, message=FALSE, warning=FALSE}
+##1)We can consider `weight` and `uterus` as continuous variable. All other variables only have seperate values.
+summary(bioassay)
+bioassay %>% select(EE) %>% table()
+bioassay %>% select(ZM) %>% table()
+##2)There are significant interaction among variables. Because each labs adopted differet treatment.
+table(bioassay$EE,bioassay.fac$lab)
+##visualization for points
+#ggplot(data=bioassay,mapping = aes(y = lab,x = protocol,color=as.factor(ZM)))+
+#  geom_jitter(alpha=0.5)
+#ggplot(data=bioassay.fac,mapping = aes(y = lab,x = ZM,color=protocol))+
+#  geom_jitter(alpha=0.5)
+#ggplot(data=bioassay,mapping = aes(y = lab,x = protocol,color=as.factor(EE)))+
+#  geom_jitter(alpha=0.5)
+#ggplot(data=bioassay,mapping = aes(y = lab,x = protocol,color=as.factor(EE)))+
+#     geom_count(alpha=0.5,position = "jitter")
+```
+
+
+```{r EDA, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+##---------------------boxplot
+##different labs have diff mean on ZM. interaction on labs and protocol.
+##when consider ZM as numeric, the diff is not sig in pic. but in factor - diff.
+###4var:ZM
+
+outliers=c(1426,926,1586)#,1425,1946,2666)
+ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = ZM,color=lab))+
+  geom_boxplot()+theme_bw()+facet_wrap(~ protocol)+
+  geom_text(data=bioassay.fac[outliers,],
+            aes(label=outliers,color=lab))
+#+theme(legend.position="bottom",
+#       legend.title=element_blank())
+##caculate the mean for different group 
+#bioassay.fac %>% group_by(ZM) %>% summarize(mean=mean(uterus,na.rm=T))
+
+##4var:EE
+ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = EE,color=lab))+
+  geom_boxplot()+theme_bw()+facet_wrap(~ protocol)+
+  geom_text(data=bioassay.fac[outliers,],
+            aes(label=outliers,color=lab))
+#+scale_colour_discrete(guide = FALSE)
+##caculate the mean for different group.
+#bioassay.fac %>% group_by(EE) %>% summarize(mean=mean(uterus,na.rm=T))
+
+##weights
+ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = weight))+
+  geom_point()+geom_smooth(method = "lm")+theme_bw()+facet_wrap(~ protocol,scales = "free")+
+  geom_text(data=bioassay.fac[outliers,],
+            aes(label=outliers,color=lab))
+
+```
+
+
+```{r lm.full.fac, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+lm.full.fac=lm(data = bioassay.fac[-c(1586,926),],formula = uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab) 
+
+#plot(lm.full.fac) ##use the plot to check model assumption. (detect outliers, normality, influential points.)
+
+#bioassay.fac %>% select(EE,ZM) %>% table() -- there is imbalanced distribution 
+
+#summary(lm.full.fac)
+#Adjusted R-squared:  0.9538 
+
+##if consider EE,ZM as numeric
+#lm.full.q=lm(data = bioassay,formula = #uterus~poly(EE,2)+poly(ZM,2)+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)
+#anova(lm.full.q)
+#summary(lm.full.q) #0.8286 #p=69 
+```
+
+```{r functions, echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+eff.tbl=function(lm.obj){
+  
+  ind.mat=matrix(0,nrow=nrow(summary(lm.obj)$coefficients),ncol=7)
+  colnames(ind.mat)=c("EE","ZM","lab","protocol","EEdose","ZMdose","interaction")
+  ind.mat=cbind(coef=summary(lm.obj)$coefficients%>%rownames(.),ind.mat)
+  ind.mat[str_detect(ind.mat[,1],"EE"),"EE"]=1
+  ind.mat[str_detect(ind.mat[,1],"ZM"),"ZM"]=1
+  ind.mat[str_detect(ind.mat[,1],"lab"),"interaction"]=1
+  ind.mat[str_detect(ind.mat[,1],"protocol"),"interaction"]=1
+  
+  for (dose in c(bioassay.fac$EE %>% levels())){
+     ind.mat[str_detect(ind.mat[,1],paste0("EE",dose)),"EEdose"]=dose
+  }
+  for (dose in c(bioassay.fac$ZM %>% levels())){
+     ind.mat[str_detect(ind.mat[,1],paste0("ZM",dose)),"ZMdose"]=dose
+  }
+  for (lab in c(bioassay.fac$lab %>% levels())){
+     ind.mat[str_detect(ind.mat[,1],paste0("lab",lab)),"lab"]=lab
+  }     
+  for (protocol in c(bioassay.fac$protocol %>% levels())){
+     ind.mat[str_detect(ind.mat[,1],paste0("protocol",protocol)),"protocol"]=protocol
+  }  
+  ind.tbl=ind.mat%>% as.tibble()
+  return(ind.tbl)
+}
+
+t.test=function(lm.obj,str.ee,str.lab,str.ori){
+ind.tbl=eff.tbl(lm.obj)
+cov.coef=vcov(lm.obj)
+p=nrow(ind.tbl)
+i.levels=bioassay.fac %>% pull(str.ori) %>% levels() #original colnames in bioassay.fac
+i.n=i.levels %>% length(.)
+lambda=matrix(nrow=i.n,ncol=nrow(ind.tbl))
+lab.ee=t.value=p.value=denominator=nominator=numeric(i.n)
+
+for (i in 1:i.n){
+  lambda[i,]=((ind.tbl[str.lab]==i.levels[i])&(ind.tbl[str.ee]=="1"))|((ind.tbl[str.ee]=="1")&(ind.tbl["interaction"]=="0"))
+  lab.ee[i]=summary(lm.obj)$coefficients[lambda[i,],"Estimate"] %>% sum()
+  denominator[i]=(cov.coef[lambda[i,],lambda[i,]]) %>% sum() %>% sqrt() 
+  nominator[i]=lab.ee[i] %>% abs()
+  t.value[i]=(nominator[i])/(denominator[i])
+  p.value[i]=pt(q = t.value[i],df = summary(lm.obj)$df[2],lower.tail = FALSE)
+}
+
+res=list(t.test=tibble(i.levels,p.value,estimator=lab.ee),value=tibble(i.levels,variance=denominator,estimator=nominator))
+return(res)
+}
+```
+
+
+```{r part1.result, message=TRUE, warning=FALSE, paged.print=FALSE,eval=FALSE}
+#0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+##a.1
+##uterotrophic bioassay successful overal at identifying effects of EE and ZM. F-test for EE,ZM are significant. For the significant coefficients, all EE are positive, ZM are negative. 
+anova(lm.full.fac)
+
+coefs=rownames(summary(lm.full.fac)$coefficients)
+
+res=summary(lm.full.fac)$coefficients %>%
+  cbind(coef=coefs,.) %>% 
+  as.tibble() #get the coefficients matrix
+
+colnames(res)=c("coef","estimate","std_error","t_value","p_value")
+
+res %>% filter(as.numeric(p_value)<0.05) %>% slice(1:10)
+
+
+##a.2 do some labs fail t detect such effects
+##There are some labs fail to detect such effects, as follows:"Huntingd""Bayer""ChungKor""TNO""Zeneca"  
+a.2.ee=t.test(lm.full.fac,"EE","lab","lab")$t.test
+a.2.ee
+a.2.ee %>% filter(((p.value<0.05)&(estimator<0))|(p.value>0.05))# %>% pull(i.levels)
+
+a.2.zm=t.test(lm.full.fac,"ZM","lab","lab")$t.test
+a.2.zm
+a.2.zm %>% filter(((p.value<0.05)&(estimator>0))|(p.value>0.05))#%>% pull(i.levels)
+
+##a.3 the change dose for EE? vary across labs?
+##From the output of summary. The change dose for EE is EE3. Dose larger than this is significant, less than this is not significant. The value varies across labs. Because for different labs, the dose changing points is different. For example, SUmitomo. EE0.3 may be the changing dose point. For Huntingd, EE0.1 may be the changing dose point.
+
+##b. does the dose reponse vary across labs? are there certain labs stands out as being different?
+##From the output of summary. There exist several significant interaction cofficients, meaning dose reponse vary across labs. The labs Berlin and Sumitomo stands out as being different.(with pvalue<0.001 for EE:labs). The labs Bayer,Poulenc,Zeneca stands out as being different.(with pvalue<0.005 for ZM:labs)
+
+res %>% filter(str_detect(res$coef,"EE.*lab")) %>%
+  filter(p_value<0.001)
+
+res %>% filter(str_detect(res$coef,"ZM.*lab")) %>%
+  filter(p_value<0.005)
+
+##c.Do the protocols differ in sensitivity to detect? Which one recommend?
+##From the result from anova. The protocols differ. And the variance of protocol C,D is super large. Protocol A and B would be recommended.
+
+anova(lm.full.fac)["EE:protocol", ]
+anova(lm.full.fac)["ZM:protocol", ]
+
+res %>% filter(str_detect(res$coef,"^protocol"))
+
+res %>% filter(str_detect(res$coef,"EE.*protocol")) 
+
+res %>% filter(str_detect(res$coef,"ZM.*protocol"))
+
+```
