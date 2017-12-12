@@ -18,6 +18,7 @@ library(ggplot2)
 library(stringr)
 library(BAS)
 library("R2jags")
+library(knitr)
 
 bioassay.read = read.table("http://stat.duke.edu/sites/stat.duke.edu/files/bioassay.txt",
                        header=T,stringsAsFactors = FALSE) %>% as.tibble()
@@ -26,7 +27,13 @@ bioassay=bind_cols(map_df(bioassay.read %>% select(uterus,weight,EE,ZM),~.x %>% 
                    map_df(bioassay.read %>% select(protocol,lab,group),~.x %>% as.factor(.))
                    ) %>% as.tibble()
 bioassay.fac=bioassay %>% mutate(EE=as.factor(EE),ZM=as.factor(ZM))
+X.fac=model.matrix(data=bioassay.fac,object =~ EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)
 ```
+
+Containing Part I to Part IV
+
+I use three different ways to settle down the problems. For part I(MLE), I mainly use t-test and F-test. For part II(BMA with hyper-g-n prior), I mainly use the posterior model probability, inclusive probability and the posterior pdf for each predictor. For part III(jags), I would just use visualization (CI) to illustrate. Actually, for each part, we can use boxplot to illustrate for convenience and directly. The long table and graph would be attached at the end of the document.
+
 
 ### Part I
 
@@ -85,7 +92,7 @@ ggplot(data=bioassay.fac,mapping = aes(y = uterus,x = weight))+
 
 ```
 
-####Model and Results(Explaination are all inside the chunck)
+####Model and Results
 
 ```{r lm.full.fac, message=FALSE, warning=FALSE, paged.print=FALSE}
 lm.full.fac=lm(data = bioassay.fac[-c(1586,926),],formula = uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab) 
@@ -105,15 +112,22 @@ lm.full.fac=lm(data = bioassay.fac[-c(1586,926),],formula = uterus~EE+ZM+lab+pro
 
 ```{r functions,  message=FALSE, warning=FALSE, paged.print=FALSE}
 eff.tbl=function(lm.obj){
+  if (is.matrix(lm.obj)){
+    ind.mat=matrix(0,nrow=ncol(lm.obj),ncol=7)
+    colnames(ind.mat)=c("EE","ZM","lab","protocol","EEdose","ZMdose","interaction")
+    ind.mat=cbind(coef=lm.obj%>%colnames(.),ind.mat)
+  }else{
+    ind.mat=matrix(0,nrow=nrow(summary(lm.obj)$coefficients),ncol=7)
+    colnames(ind.mat)=c("EE","ZM","lab","protocol","EEdose","ZMdose","interaction")
+    ind.mat=cbind(coef=summary(lm.obj)$coefficients%>%rownames(.),ind.mat)
+  }
   
-  ind.mat=matrix(0,nrow=nrow(summary(lm.obj)$coefficients),ncol=7)
-  colnames(ind.mat)=c("EE","ZM","lab","protocol","EEdose","ZMdose","interaction")
-  ind.mat=cbind(coef=summary(lm.obj)$coefficients%>%rownames(.),ind.mat)
   ind.mat[str_detect(ind.mat[,1],"EE"),"EE"]=1
   ind.mat[str_detect(ind.mat[,1],"ZM"),"ZM"]=1
-  ind.mat[str_detect(ind.mat[,1],"lab"),"interaction"]=1
-  ind.mat[str_detect(ind.mat[,1],"protocol"),"interaction"]=1
-  
+  ind.mat[str_detect(ind.mat[,1],"EE.*protocol"),"interaction"]=1
+  ind.mat[str_detect(ind.mat[,1],"ZM.*protocol"),"interaction"]=1
+  ind.mat[str_detect(ind.mat[,1],"EE.*lab"),"interaction"]=1
+  ind.mat[str_detect(ind.mat[,1],"ZM.*lab"),"interaction"]=1
   for (dose in c(bioassay.fac$EE %>% levels())){
      ind.mat[str_detect(ind.mat[,1],paste0("EE",dose)),"EEdose"]=dose
   }
@@ -153,11 +167,14 @@ return(res)
 }
 ```
 
+a.1
+
+uterotrophic bioassay successful overal at identifying effects of EE and ZM. F-test for EE,ZM are significant. For the significant coefficients, all EE are positive, ZM are negative. 
+
 ```{r part1.result, warning=FALSE, paged.print=FALSE}
 #0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
 
-##a.1
-##uterotrophic bioassay successful overal at identifying effects of EE and ZM. F-test for EE,ZM are significant. For the significant coefficients, all EE are positive, ZM are negative. 
+
 anova(lm.full.fac)
 
 coefs=rownames(summary(lm.full.fac)$coefficients)
@@ -169,10 +186,13 @@ res=summary(lm.full.fac)$coefficients %>%
 colnames(res)=c("coef","estimate","std_error","t_value","p_value")
 
 res %>% filter(as.numeric(p_value)<0.05) %>% slice(1:10)
+```
 
+a.2 do some labs fail to detect such effects
 
-##a.2 do some labs fail t detect such effects
-##There are some labs fail to detect such effects, as follows:"Huntingd""Bayer""ChungKor""TNO""Zeneca"  
+There are some labs fail to detect such effects, as follows:"Huntingd""Bayer""ChungKor""TNO""Zeneca". Or just pick out the labs with significant p value at "EE:lab_i" but opposite t value. ("Huntingd""Bayer""Zeneca")
+
+```{r}
 a.2.ee=t.test(lm.full.fac,"EE","lab","lab")$t.test
 a.2.ee
 a.2.ee %>% filter(((p.value<0.05)&(estimator<0))|(p.value>0.05))# %>% pull(i.levels)
@@ -181,21 +201,33 @@ a.2.zm=t.test(lm.full.fac,"ZM","lab","lab")$t.test
 a.2.zm
 a.2.zm %>% filter(((p.value<0.05)&(estimator>0))|(p.value>0.05))#%>% pull(i.levels)
 
-##a.3 the change dose for EE? vary across labs?
-##From the output of summary. The change dose for EE is EE3. Dose larger than this is significant, less than this is not significant. The value varies across labs. Because for different labs, the dose changing points is different. For example, SUmitomo. EE0.3 may be the changing dose point. For Huntingd, EE0.1 may be the changing dose point.
+res %>% filter(str_detect(res$coef,"EE.*lab")) %>%
+   filter(p_value<0.05,t_value<0)
+res %>% filter(str_detect(res$coef,"ZM.*lab")) %>%
+   filter(p_value<0.05,t_value<0)
+```
 
-##b. does the dose reponse vary across labs? are there certain labs stands out as being different?
-##From the output of summary. There exist several significant interaction cofficients, meaning dose reponse vary across labs. The labs Berlin and Sumitomo stands out as being different.(with pvalue<0.001 for EE:labs). The labs Bayer,Poulenc,Zeneca stands out as being different.(with pvalue<0.005 for ZM:labs)
+a.3 the change dose for EE? vary across labs?
 
+From the output of summary(See the end of part I). The change dose for EE is EE3. Dose larger than this is significant, less than this is not significant. The value varies across labs. Because for different labs, the dose changing points is different. For example, SUmitomo. EE0.3 may be the changing dose point. For Huntingd, EE0.1 may be the changing dose point.
+
+b. does the dose reponse vary across labs? are there certain labs stands out as being different?
+From the output of summary. There exist several significant interaction cofficients, meaning dose reponse vary across labs. The labs Berlin and Sumitomo stands out as being different.(with pvalue<0.001 for EE:labs). The labs Bayer,Poulenc,Zeneca stands out as being different.(with pvalue<0.005 for ZM:labs)
+
+```{r}
 res %>% filter(str_detect(res$coef,"EE.*lab")) %>%
   filter(p_value<0.001)
 
 res %>% filter(str_detect(res$coef,"ZM.*lab")) %>%
   filter(p_value<0.005)
+```
 
-##c.Do the protocols differ in sensitivity to detect? Which one recommend?
-##From the result from anova. The protocols differ. And the variance of protocol C,D is super large. Protocol A and B would be recommended.
 
+c.Do the protocols differ in sensitivity to detect? Which one recommend?
+
+From the result from anova. The protocols differ. And the variance of protocol C,D is super large. Protocol A and B would be recommended.
+
+```{r}
 anova(lm.full.fac)["EE:protocol", ]
 anova(lm.full.fac)["ZM:protocol", ]
 
@@ -207,11 +239,12 @@ res %>% filter(str_detect(res$coef,"ZM.*protocol"))
 
 ```
 
+
 ### Part II
 
-With the same model, using Bayesian Average Model to estimate the parameter with hyper-g-n prior(mixture prior). To answer the questions, I mainly concentrate on $Pr(\gamma_i=0)$ and the shape of posterior distribution for $\beta_i$ (or confidence interval). 
+With the same model, using Bayesian Average Model to estimate the parameter with hyper-g-n prior(mixture prior). To answer the questions, I mainly concentrate on inclusion probability, posterior model probability and the shape of posterior distribution for $\beta_i$ (or confidence interval). 
 
-```{r bays.fac.1.gprior}
+```{r bays.fac.1.gprior,echo=FALSE,eval=FALSE}
 #EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab
 n=nrow(bioassay.fac)
 X.fac.1=model.matrix(data=bioassay.fac,object =~ EE+ZM+lab+protocol+weight+EE:protocol+ZM:protocol+EE:lab+ZM:lab)
@@ -251,16 +284,101 @@ bas.fac.2=bas.lm(formula =uterus~EE+ZM+lab+protocol+weight+EE:protocol+ZM:protoc
 ##diagonose
 diagnostics(bas.fac.2,"pip")
 ##More iteration would be better
+```
 
-#image(bas.fac.2)
+a.1 Similar to Part I, we want to test whether the coefficients before `EE` all equal to 0. Here I use sum posterior model probabiliters over all models that include `EE`, is 0.99982. Similar for ZM,is 0.99982. For the coefficients `EE` with high inclusion probability, all of them are larger than 0 with high probability. Simlar for `ZM `(negative). So the method successful overall at identifying effects.
+
+```{r part2.a.1}
+
+a_1=function(str_ee){
+  which.mat=list2matrix.which(bas.fac.2,)
+  ind.tbl.bas=eff.tbl(X.fac) #part II model assumption is the same to part I
+  head(ind.tbl.bas)
+  ind.var=((ind.tbl.bas[str_ee]=="1")&(ind.tbl.bas$interaction=="0"))
+  n.ind=sum(ind.var)
+  poll.in=(which.mat[,ind.var] %*% rep(1,n.ind))>0
+  res=list(prob=sum(poll.in*bas.fac.2$postprobs),ind=ind.var)
+  return(res)
+}
+
+
+
+a_1("EE")$prob
+a_1("ZM")$prob
+
+#image(bas.fac.2)--to much predictor, cannot visualization
 #plot(bas.fac.2)
-summary(bas.fac.2)
+
+par(mfrow=c(2,2))
+ind.ee=which(a_1("EE")$ind)
+coef(bas.fac.2) %>% plot(.,ask=F,subset=ind.ee)
+ind.zm=which(a_1("ZM")$ind)
+coef(bas.fac.2) %>% plot(.,ask=F,subset=ind.zm)
+
+```
+
+a.2 Concerntrate on `EE:lab_i`, `ZM:lab_i`. Pick out the labs with high inclusive probability but opposite location compared to others. ("Huntingd""Zeneca""TNO""KoreaPar""ChungKor""Poulenc""EnvTox") Simply, the rule is for   `EE`, if `EE:lab_i` is at the left side of the verticle black line and the verticle black line is short, we may consider the lab fail to detect. Similar for `ZM`.
+
+```{r,eval=FALSE}
 coef(bas.fac.2) %>% plot(.,ask=F)
+
+#bas.a_2=function(lm.obj,int.tbl,str.ee,str.lab,str.ori){
+#p=nrow(ind.tbl)
+#i.levels=bioassay.fac %>% pull(str.ori) %>% levels() #original colnames in bioassay.fac
+#i.n=i.levels %>% length(.)
+#lambda=matrix(nrow=i.n,ncol=nrow(ind.tbl))
+#lab.ee=prob=numeric(i.n)
+#for (i in 1:i.n){
+#  lambda[i,]=((ind.tbl[str.lab]==i.levels[i])&(ind.tbl[str.ee]=="1"))|((ind.tbl[str.ee]=="1")&(ind.tbl["int#eraction"]=="0"))
+#  n.ind=sum(lambda[i,])
+#  poll.in=(which.mat[,lambda[i,]] %*% rep(1,n.ind))>0
+#  prob[i]=sum(poll.in*lm.obj$postprobs)
+#  }
+#res=list(prob.res=tibble(i.levels,probability=prob),ind=lambda)
+#return(res)
+#}
+#ind.tbl.bas=eff.tbl(X.fac)
+#a_21=bas.a_2(bas.fac.2,ind.tbl.bas,"EE","lab","lab")
+#a_21$prob.res
+#a_22=bas.a_2(bas.fac.2,ind.tbl.bas,"ZM","lab","lab")
+#a_22$prob.res
+#
+#ind.ee=which(a_21$ind[2,])
+#coef(bas.fac.2) %>% plot(.,ask=F,subset=ind.ee)
+#ind.zm=which(a_22$ind)
+#coef(bas.fac.2) %>% plot(.,ask=F,subset=ind.zm)
 
 
 ```
+
+a.3 Concerntrate on `EE`,`ZM`, see which dose level the inclusive probability significantly change. EE1. And concerntrate on  `EE:lab_i`,`ZM:lab_i` to see which dose level the inclusive probability significantly change. They vary.
+
+b. The dose response vary across labs, because there exist `EE:lab_i`,`ZM:lab_i` with high inclusive probability. There are certain labs ("Huntingd""Zeneca""TNO""KoreaPar""ChungKor""Poulenc""EnvTox") stand out as being different.
+
+c.Protocols differ in the sensitivity to detect effects. Protocol B would be recommended because the length of CI for `protocolB:EE` and `protocolB:ZM` are small compared to others.
+
+```{r}
+
+coefs=rownames(confint(coef(bas.fac.2)))
+ci.length=apply(confint(coef(bas.fac.2)),1,function(x) as.numeric(x[2])-as.numeric(x[1]))
+  
+bas.coef=confint(coef(bas.fac.2)) %>%
+  cbind(coef=coefs,.) %>% 
+  as.tibble() %>% #get the coefficients matrix
+  mutate(ci.length=ci.length)
+
+bas.coef %>% filter(str_detect(coef,"EE.*protocol")) %>% arrange(sort(ci.length)) %>% slice(1:10)
+
+bas.coef %>% filter(str_detect(coef,"ZM.*protocol")) %>% arrange(sort(ci.length)) %>% slice(1:10)
+
+```
+
+
+
 ###Part III
 
+
+Because I set iteration=30000, and include many predictors. So the jags would be slow. So I load the data I got. An improvement for this is to adjust the distribution for $\sigma_L^2/\lambda_l$ behave like double exponential distribution. The hyperparameter a here is important for adjusting whether we want our model more robust. I chose a=2 for I want to let my model get less sensitive to labs "outliers". 
 
 Prepare the data
 
@@ -343,9 +461,32 @@ stack.sim=readRDS("stack.sim.rds")
 Analysis on simulation result.
 
 
-```{r}
+```{r,eval=FALSE}
 # create an MCMC object with the results for the MCMC draws
 stack.mcmc = as.mcmc(stack.sim$BUGSoutput$sims.matrix)  #get the simulation points
 
+mcmc.df=stack.mcmc %>% as.tibble()
+lambda.plot=mcmc.df %>% select(`lambda[1]`:`lambda[21]`) %>% gather(.)
+lamda.levels=paste0("lambda[",1:21,"]") 
+ggplot(data = lambda.plot,mapping = aes(x = key,y = value,fill=key))+geom_boxplot()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+scale_x_discrete(limits=lamda.levels)+ guides(fill=FALSE)
+
+apply(stack.mcmc[,c("beta0","beta[1]","beta[2]","beta[3]")],2,quantile,c(.025, .975))
+#plot(stack.sim)
+#summary(stack.sim)  # names of objects in bf.sim
+#stack.sim  # print gives summary
+#quantile(stack.mcmc[,"beta0"], c(.025, .5, .975))
+#HPDinterval(stack.mcmc)
+
 ```
 
+### Table for the whole model
+
+```{r}
+kable(summary(lm.full.fac)$coefficients, format = "markdown")
+```
+
+
+```{r}
+kable((bas.coef), format = "markdown")
+```
